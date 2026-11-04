@@ -1,3 +1,4 @@
+import { cropRect } from "./crop";
 import { allItems, imageLoad, type Board } from "./model";
 export async function exportPng(
   board: Board,
@@ -6,12 +7,22 @@ export async function exportPng(
 ): Promise<Blob> {
   const width = 1400,
     label = 126,
-    cell = 106,
-    rowHeight = 150,
-    cols = Math.floor((width - label) / cell);
-  const rows = board.ranks.map((r) =>
-    Math.max(1, Math.ceil(r.items.length / cols)),
-  );
+    rowHeight = 150;
+  const plans = board.ranks.map((rank) => {
+    let x = label,
+      row = 0;
+    return rank.items.map((item) => {
+      const w = rowHeight * (item.crop?.ratio || 2 / 3);
+      if (x + w > width) {
+        row++;
+        x = label;
+      }
+      const p = { x, row, w };
+      x += w;
+      return p;
+    });
+  });
+  const rows = plans.map((p) => Math.max(1, (p.at(-1)?.row || 0) + 1));
   const credits = [
     ...new Set(
       allItems(board)
@@ -52,8 +63,8 @@ export async function exportPng(
     ctx.textAlign = "left";
     for (let i = 0; i < rank.items.length; i++) {
       const img = await imageLoad(rank.items[i].src);
-      const x = label + (i % cols) * cell,
-        top = y + Math.floor(i / cols) * rowHeight;
+      const { x, row, w: cell } = plans[r][i],
+        top = y + row * rowHeight;
       if (fit) {
         const scale = Math.min(cell / img.width, rowHeight / img.height);
         ctx.drawImage(
@@ -64,15 +75,19 @@ export async function exportPng(
           img.height * scale,
         );
       } else {
-        const scale = Math.max(cell / img.width, rowHeight / img.height),
-          sw = cell / scale,
-          sh = rowHeight / scale;
+        const rect = cropRect(
+          img.width,
+          img.height,
+          cell,
+          rowHeight,
+          rank.items[i].crop,
+        );
         ctx.drawImage(
           img,
-          (img.width - sw) / 2,
-          (img.height - sh) / 2,
-          sw,
-          sh,
+          rect.sx,
+          rect.sy,
+          rect.sw,
+          rect.sh,
           x,
           top,
           cell,

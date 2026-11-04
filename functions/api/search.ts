@@ -1,3 +1,4 @@
+import { animeAliases } from "../../server/anime-aliases.ts";
 import { animeSearch } from "../../server/anime.ts";
 import { catalog, unwanted, type ArtworkEnv } from "../../server/artwork.ts";
 import { food } from "../../server/food.ts";
@@ -36,7 +37,8 @@ export async function onRequestGet({
     terms: [],
   };
   try {
-    wiki = await wikipedia(q);
+    wiki =
+      requestedType === "anime" ? await animeAliases(q) : await wikipedia(q);
   } catch {
     warnings.push("Wikipediaに接続できませんでした");
   }

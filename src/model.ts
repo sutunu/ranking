@@ -1,4 +1,6 @@
+import type { Crop } from "./crop";
 export type Item = {
+  crop?: Crop;
   rights?: {
     provider: string;
     officialVerification: string;
@@ -111,6 +113,19 @@ export function parseBoards(value: unknown): Board[] {
         typeof x.id !== "string" ||
         local.has(x.id) ||
         typeof x.name !== "string" ||
+        (x.crop !== undefined &&
+          (!x.crop ||
+            ![x.crop.x, x.crop.y, x.crop.zoom, x.crop.ratio].every(
+              Number.isFinite,
+            ) ||
+            x.crop.x < 0 ||
+            x.crop.x > 100 ||
+            x.crop.y < 0 ||
+            x.crop.y > 100 ||
+            x.crop.zoom < 1 ||
+            x.crop.zoom > 4 ||
+            x.crop.ratio < 0.5 ||
+            x.crop.ratio > 2)) ||
         typeof x.src !== "string" ||
         !/^data:image\/(png|jpeg|webp);base64,/.test(x.src) ||
         typeof x.key !== "string" ||
@@ -147,7 +162,7 @@ export async function normalizeImage(blob: Blob): Promise<string> {
   const url = URL.createObjectURL(blob);
   try {
     const img = await imageLoad(url);
-    const ratio = Math.min(1, 640 / Math.max(img.width, img.height));
+    const ratio = Math.min(1, 1600 / Math.max(img.width, img.height));
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(img.width * ratio));
     canvas.height = Math.max(1, Math.round(img.height * ratio));

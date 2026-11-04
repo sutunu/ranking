@@ -5,6 +5,7 @@ const mock = vi.hoisted(() => ({
   food: vi.fn(),
   anime: vi.fn(),
 }));
+vi.mock("../server/anime-aliases.ts", () => ({ animeAliases: mock.wiki }));
 vi.mock("../server/discovery.ts", async (importOriginal) => ({
   ...(await importOriginal<any>()),
   wikipedia: mock.wiki,

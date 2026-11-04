@@ -1,3 +1,4 @@
+import { CropEditor } from "./CropEditor";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -65,6 +66,7 @@ type Result = {
   credit: string;
   urls?: string[];
   artwork?: string;
+  year?: number;
   rights?: Item["rights"];
   workId?: string;
 };
@@ -105,11 +107,25 @@ function Tile({
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
+        width: `calc(var(--tile-height,102px) * ${item.crop?.ratio || 2 / 3})`,
         opacity: isDragging ? 0.25 : undefined,
       }}
       aria-label={`${item.name}を移動・編集`}
     >
-      <img src={item.src} alt={item.name} draggable={false} />
+      <img
+        src={item.src}
+        alt={item.name}
+        draggable={false}
+        style={
+          fit
+            ? undefined
+            : {
+                objectPosition: `${item.crop?.x ?? 50}% ${item.crop?.y ?? 50}%`,
+                transform: `scale(${item.crop?.zoom || 1})`,
+                transformOrigin: `${item.crop?.x ?? 50}% ${item.crop?.y ?? 50}%`,
+              }
+        }
+      />
       <span>{item.name}</span>
     </button>
   );
@@ -151,6 +167,7 @@ function Zone({
   );
 }
 function App() {
+  const [cropItem, setCropItem] = useState<Item | null>(null);
   const [missingWorks, setMissingWorks] = useState<
     { name: string; status: string }[]
   >([]);
@@ -970,7 +987,10 @@ function App() {
                           </button>
                           <strong title={r.name}>{r.name}</strong>
                           {r.artwork && (
-                            <small className="artwork-label">{r.artwork}</small>
+                            <small className="artwork-label">
+                              {r.artwork}
+                              {r.year ? ` · ${r.year}年` : ""}
+                            </small>
                           )}
                           {failedImages.includes(r.key) && (
                             <small className="image-error">
@@ -1157,6 +1177,27 @@ function App() {
           e.target.value = "";
         }}
       />
+      {cropItem && (
+        <Modal title="画像の表示位置を調整" close={() => setCropItem(null)}>
+          <CropEditor
+            item={cropItem}
+            onSave={(crop) => {
+              setFit(false);
+              const change = (i: Item) =>
+                i.id === cropItem.id ? { ...i, crop } : i;
+              commit({
+                ...board,
+                pool: board.pool.map(change),
+                ranks: board.ranks.map((r) => ({
+                  ...r,
+                  items: r.items.map(change),
+                })),
+              });
+              setCropItem(null);
+            }}
+          />
+        </Modal>
+      )}
       {selected && (
         <Modal title="画像を移動・編集" close={() => setSelected(null)}>
           <div className="selected-item">
@@ -1171,6 +1212,15 @@ function App() {
               )}
             </div>
           </div>
+          <button
+            className="button full"
+            onClick={() => {
+              setCropItem(selected);
+              setSelected(null);
+            }}
+          >
+            画像の表示位置を調整
+          </button>
           <label className="field">
             画像の名前
             <input

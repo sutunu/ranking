@@ -28,8 +28,8 @@ fs.mkdirSync("artifacts", { recursive: true });
   await page.locator(".result>button").first().waitFor({ timeout: 40000 });
   console.log("live search results", await page.locator(".result").count());
   if (
-    !(await page.locator(".artwork-label").first().innerText()).includes(
-      "作品データベース",
+    !(await page.locator(".artwork-label").first().innerText()).match(
+      /作品データベース|(?:Kitsu|AniList|Jikan)掲載のポスター/,
     )
   )
     throw Error("unclassified photo result");

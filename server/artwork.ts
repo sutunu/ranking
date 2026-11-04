@@ -9,7 +9,7 @@ export const unwanted = (i: {
   credit?: string;
   topics?: string;
 }) =>
-  /cosplay|cosplayer|fan[ _-]?art|live[ _-]?action|コスプレ|ファンアート|実写版|実写化|俳優写真/i.test(
+  /ai[ _-]?generated|AI生成|非公式イラスト|cosplay|cosplayer|fan[ _-]?art|live[ _-]?action|コスプレ|ファンアート|実写版|実写化|俳優写真/i.test(
     [i.name, i.credit, i.topics].join(" "),
   );
 export async function catalog(q: string, type: string, env: ArtworkEnv) {

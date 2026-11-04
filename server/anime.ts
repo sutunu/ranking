@@ -1,3 +1,4 @@
+import { unwanted } from "./artwork.ts";
 import { normalize, relevance } from "./discovery.ts";
 type Work = {
   id: string;
@@ -15,6 +16,7 @@ const cache = new Map<
     { until: number; works: Work[]; error?: string }
   >(),
   pending = new Map<string, Promise<any>>();
+const catalogIndex = new Map<string, { until: number; work: Work }>();
 const quotas = new Map<string, number[]>();
 let jikanQueue = Promise.resolve();
 async function provider(
@@ -125,6 +127,11 @@ async function provider(
           release();
         }
       }
+      for (const work of works) {
+        if (catalogIndex.size >= 1000)
+          catalogIndex.delete(catalogIndex.keys().next().value!);
+        catalogIndex.set(work.id, { until: Date.now() + 900000, work });
+      }
       return { works };
     } catch (e) {
       return {
@@ -165,8 +172,24 @@ export async function animeSearch(
       ...new Set([variants.find((t) => t !== q) || q, q, ...variants]),
     ].slice(0, 3),
     diagnostics: any[] = [];
-  let works: Work[] = [];
-  for (const term of terms.slice(0, 2)) {
+  let works: Work[] = [...catalogIndex.values()]
+    .filter(
+      (v) =>
+        v.until > Date.now() &&
+        v.work.aliases.some((a) => relevance(a, q) >= 80),
+    )
+    .map((v) => v.work);
+  const exactCached = works.some((w) =>
+    w.aliases.some((a) => normalize(a) === normalize(q)),
+  );
+  if (exactCached)
+    diagnostics.push({
+      provider: "catalog-cache",
+      term: q,
+      status: "ok",
+      count: works.length,
+    });
+  for (const term of exactCached ? [] : terms.slice(0, 2)) {
     const results = await Promise.all(
       ["AniList", "Kitsu", "Jikan"].map(async (p) => ({
         provider: p,
@@ -197,7 +220,12 @@ export async function animeSearch(
   );
   const groups: Work[][] = [];
   for (const w of works) {
-    if (excluded.has(w.id) || excluded.has(w.source)) continue;
+    if (
+      excluded.has(w.id) ||
+      excluded.has(w.source) ||
+      unwanted({ name: w.name })
+    )
+      continue;
     let g = groups.find((g) =>
       g.some((other) => sameWork(other, w) || other.id === w.id),
     );
@@ -213,15 +241,23 @@ export async function animeSearch(
     candidates: g,
   }));
   const target = variants.find((t) => t !== q) || q;
+  const direct = (g: (typeof records)[number]) =>
+    Math.max(...g.aliases.map((a) => relevance(a, q)));
+  const hasDirect = records.some((g) => direct(g) >= 80);
   const rank = (g: (typeof records)[number]) =>
-    Math.max(
-      ...g.aliases.map((a) =>
-        Math.max(relevance(a, q), 0.9 * relevance(a, target)),
-      ),
-    );
+    hasDirect
+      ? direct(g)
+      : Math.max(
+          ...g.aliases.map((a) =>
+            Math.max(relevance(a, q), 0.9 * relevance(a, target)),
+          ),
+        );
   records.sort(
     (a, b) =>
-      rank(b) - rank(a) || normalize(a.name).length - normalize(b.name).length,
+      rank(b) - rank(a) ||
+      Math.min(...a.candidates.map((w) => w.year || 9999)) -
+        Math.min(...b.candidates.map((w) => w.year || 9999)) ||
+      normalize(a.name).length - normalize(b.name).length,
   );
   const candidates = records.flatMap((g) =>
     g.candidates
@@ -231,6 +267,12 @@ export async function animeSearch(
         name: g.name,
         url: w.url,
         source: w.source,
+        year: w.year,
+        format: w.format,
+        aliases: w.aliases,
+        urls: [w.url?.replace(/\/medium([-.])/, "/small$1")].filter(
+          (u) => u && u !== w.url,
+        ),
         workId: g.workId,
         artwork: `${w.provider}掲載のポスター`,
         rights: {

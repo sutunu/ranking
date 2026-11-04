@@ -2,20 +2,35 @@ const { chromium } = require("@playwright/test");
 const fs = require("fs");
 fs.mkdirSync("artifacts", { recursive: true });
 const cases = [
+  ["暗殺教室", "Assassination Classroom"],
+  ["宝石の国", "Land of the Lustrous"],
+  ["GANTZ", "ガンツ"],
   ["葬送のフリーレン", "フリーレン"],
   ["デッドデッドデーモンズデデデデデストラクション", "デデデデ"],
-  ["暗殺教室", "Assassination Classroom"],
   ["進撃の巨人", "進撃"],
-  ["鋼の錬金術師", "ハガレン"],
-  ["STEINS;GATE", "Steins Gate"],
-  ["ヴァイオレット・エヴァーガーデン", "Violet Evergarden"],
   ["新世紀エヴァンゲリオン", "Neon Genesis Evangelion"],
+  ["コードギアス", "Code Geass"],
+  ["STEINS;GATE", "Steins Gate"],
+  ["鋼の錬金術師", "ハガレン"],
   ["HUNTER×HUNTER", "Hunter x Hunter"],
+  ["銀魂", "Gintama"],
+  ["CLANNAD", "クラナド"],
+  ["四月は君の嘘", "Your Lie in April"],
+  ["東京喰種", "Tokyo Ghoul"],
+  ["ノーゲーム・ノーライフ", "No Game No Life"],
+  ["オーバーロード", "Overlord"],
   ["魔法少女まどか☆マギカ", "まどかマギカ"],
+  ["ヴァイオレット・エヴァーガーデン", "Violet Evergarden"],
+  ["ぼっち・ざ・ろっく！", "Bocchi the Rock"],
+  ["鉄腕アトム", "Astro Boy"],
+  ["宇宙戦艦ヤマト", "Space Battleship Yamato"],
+  ["機動戦士ガンダム", "Mobile Suit Gundam"],
+  ["天空の城ラピュタ", "Castle in the Sky"],
+  ["攻殻機動隊", "Ghost in the Shell"],
 ];
 (async () => {
   const browser = await chromium.launch({
-    executablePath: process.env.BROWSER_EXECUTABLE_PATH || "/usr/bin/chromium",
+    executablePath: process.env.BROWSER_EXECUTABLE_PATH || undefined,
     args: ["--no-sandbox"],
   });
   const base = process.env.BASE_URL || "http://localhost:8794",
@@ -34,6 +49,7 @@ const cases = [
       row.search = d.items.length;
       row.diagnostics = d.diagnostics;
       row.top = d.items[0]?.name;
+      row.year = d.items[0]?.year;
       row.source = d.items[0]?.source;
       row.rights = d.items[0]?.rights;
       if (d.items.length) {
