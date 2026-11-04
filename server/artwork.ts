@@ -1,4 +1,9 @@
-export type ArtworkEnv = { TMDB_API_KEY?: string; RAWG_API_KEY?: string };
+export type ArtworkEnv = {
+  ANIME_BLOCKED_SOURCES?: string;
+  ANIME_REQUIRE_PERMISSION?: string;
+  TMDB_API_KEY?: string;
+  RAWG_API_KEY?: string;
+};
 export const unwanted = (i: {
   name?: string;
   credit?: string;

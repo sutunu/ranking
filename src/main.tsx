@@ -65,6 +65,8 @@ type Result = {
   credit: string;
   urls?: string[];
   artwork?: string;
+  rights?: Item["rights"];
+  workId?: string;
 };
 function rankButtonText(color: string) {
   const n = Number.parseInt(color.slice(1), 16);
@@ -149,6 +151,9 @@ function Zone({
   );
 }
 function App() {
+  const [missingWorks, setMissingWorks] = useState<
+    { name: string; status: string }[]
+  >([]);
   const [pendingAdd, setPendingAdd] = useState<Result | null>(null);
   const [searched, setSearched] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -327,6 +332,7 @@ function App() {
     const epoch = ++searchEpoch.current;
     setSearching(true);
     setResults([]);
+    setMissingWorks([]);
     setFailedImages([]);
     try {
       const r = await fetch(
@@ -335,7 +341,16 @@ function App() {
       const data = await r.json();
       if (epoch !== searchEpoch.current) return;
       if (!r.ok) throw Error(data.error || "検索できませんでした");
+      setMissingWorks(data.missing || []);
       setResults(data.items);
+      if (data.missing?.length)
+        setNotice(
+          data.missing
+            .map(
+              (m: any) => `${m.name}：作品は見つかりましたが画像がありません`,
+            )
+            .join(" / "),
+        );
       setSearched(true);
       setProvider(data.provider || "画像検索");
       if (data.warnings?.length) setNotice(data.warnings[0]);
@@ -366,20 +381,26 @@ function App() {
       "images.openfoodfacts.org",
       "image.tmdb.org",
       "media.rawg.io",
+      "cdn.myanimelist.net",
     ].includes(u.hostname);
     const r = await fetch(
       known ? `/api/image?url=${encodeURIComponent(url)}` : url,
       { signal: AbortSignal.timeout(20000), credentials: "omit" },
     );
     if (!r.ok)
-      throw Error(
-        "画像を取得できません。端末からのアップロードをお試しください",
-      );
+      throw Error("画像の読み込みに失敗しました。別の画像候補をお試しください");
     return r.blob();
   }
   async function addImage(
     blob: Blob,
-    meta: { name: string; key: string; source?: string; credit?: string },
+    meta: {
+      name: string;
+      key: string;
+      source?: string;
+      credit?: string;
+      rights?: Item["rights"];
+      workId?: string;
+    },
     target = "pool",
   ) {
     if (!board) return;
@@ -396,6 +417,8 @@ function App() {
     }
     const item: Item = {
       id: uid(),
+      rights: meta.rights,
+      workId: meta.workId,
       src,
       name: meta.name,
       key: meta.key,
@@ -907,6 +930,14 @@ function App() {
                   </span>
                   {!!results.length && <span>タップして追加</span>}
                 </div>
+                {missingWorks.map((w) => (
+                  <p key={w.name} className="helper">
+                    {w.name}：
+                    {w.status === "rights_unconfirmed"
+                      ? "画像の利用条件が確認できません"
+                      : "作品は見つかりましたが画像がありません"}
+                  </p>
+                ))}
                 {results.length ? (
                   <div className="results">
                     {results.map((r) => {
@@ -949,6 +980,15 @@ function App() {
                           <a href={r.source} target="_blank" rel="noreferrer">
                             出典・利用条件 ↗
                           </a>
+                          {r.rights && (
+                            <a
+                              href={r.rights.terms}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              API規約・転載許諾は未確認 ↗
+                            </a>
+                          )}
                         </div>
                       );
                     })}

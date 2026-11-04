@@ -44,6 +44,23 @@ const clean = (s = "") =>
 export async function wikipedia(q: string, correct = true) {
   const ja = /[\u3040-\u30ff\u3400-\u9fff]/.test(q),
     host = ja ? "ja.wikipedia.org" : "en.wikipedia.org";
+  let exactTerm: { name: string; en?: string } | undefined;
+  try {
+    const resolved = await api(host, {
+      titles: q,
+      redirects: "1",
+      prop: "info|langlinks",
+      lllang: ja ? "en" : "ja",
+      lllimit: "1",
+    });
+    const page = (Object.values(resolved.query?.pages || {}) as any[]).find(
+      (p) => p.pageid > 0 && p.ns === 0,
+    );
+    if (page) {
+      exactTerm = { name: page.title, en: page.langlinks?.[0]?.["*"] };
+      if (page.title !== q) q = page.title;
+    }
+  } catch {}
   let d = await api(host, {
     generator: "search",
     gsrsearch: q,
@@ -100,9 +117,12 @@ export async function wikipedia(q: string, correct = true) {
         : /[（(].*ゲーム.*[)）]/.test(titles)
           ? "games"
           : undefined;
-  const terms = pages
-    .slice(0, 2)
-    .map((p) => ({ name: p.title, en: p.langlinks?.[0]?.["*"] }));
+  const terms = [
+    ...(exactTerm ? [exactTerm] : []),
+    ...pages
+      .slice(0, 2)
+      .map((p) => ({ name: p.title, en: p.langlinks?.[0]?.["*"] })),
+  ];
   const others = pages
     .slice(0, 3)
     .filter((p) => !p.thumbnail && p.langlinks?.[0]?.["*"]);

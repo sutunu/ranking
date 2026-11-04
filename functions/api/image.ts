@@ -14,6 +14,7 @@ export async function onRequestGet({ request }: { request: Request }) {
         "images.openfoodfacts.org",
         "image.tmdb.org",
         "media.rawg.io",
+        "cdn.myanimelist.net",
       ].includes(url.hostname) ||
       url.port ||
       url.username ||
@@ -40,6 +41,7 @@ export async function onRequestGet({ request }: { request: Request }) {
         "images.openfoodfacts.org",
         "image.tmdb.org",
         "media.rawg.io",
+        "cdn.myanimelist.net",
       ].includes(u.hostname);
     for (let hop = 0; hop < 4; hop++) {
       if (!allowed(current))

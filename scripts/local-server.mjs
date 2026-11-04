@@ -31,6 +31,8 @@ createServer(async (req, res) => {
         env: {
           TMDB_API_KEY: process.env.TMDB_API_KEY,
           RAWG_API_KEY: process.env.RAWG_API_KEY,
+          ANIME_BLOCKED_SOURCES: process.env.ANIME_BLOCKED_SOURCES,
+          ANIME_REQUIRE_PERMISSION: process.env.ANIME_REQUIRE_PERMISSION,
         },
       });
       res.writeHead(response.status, Object.fromEntries(response.headers));

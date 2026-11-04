@@ -1,4 +1,12 @@
 export type Item = {
+  rights?: {
+    provider: string;
+    officialVerification: string;
+    reuse: string;
+    terms: string;
+    source: string;
+  };
+  workId?: string;
   id: string;
   name: string;
   src: string;

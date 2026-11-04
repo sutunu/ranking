@@ -3,6 +3,7 @@ const mock = vi.hoisted(() => ({
   wiki: vi.fn(),
   legacy: vi.fn(),
   food: vi.fn(),
+  anime: vi.fn(),
 }));
 vi.mock("../server/discovery.ts", async (importOriginal) => ({
   ...(await importOriginal<any>()),
@@ -10,6 +11,7 @@ vi.mock("../server/discovery.ts", async (importOriginal) => ({
 }));
 vi.mock("../server/legacy.ts", () => ({ onRequestGet: mock.legacy }));
 vi.mock("../server/food.ts", () => ({ food: mock.food }));
+vi.mock("../server/anime.ts", () => ({ animeSearch: mock.anime }));
 import { onRequestGet } from "../functions/api/search";
 const request = (q: string, type: string) =>
   onRequestGet({
@@ -23,6 +25,25 @@ beforeEach(() => {
     .mockReset()
     .mockImplementation(async () => Response.json({ items: [] }));
   mock.food.mockReset().mockResolvedValue([]);
+  mock.anime
+    .mockReset()
+    .mockImplementation(async (q: string, variants: string[]) => {
+      const r = await mock.legacy({
+        request: new Request(
+          "https://local/api/search?type=anime&q=" + encodeURIComponent(q),
+        ),
+      });
+      const d = await r.json();
+      return {
+        items: (d.items || []).filter(
+          (i: any) =>
+            !/cosplay|fan art|実写版/.test([i.name, i.credit].join(" ")),
+        ),
+        status: "ok",
+        diagnostics: [],
+        provider: "test",
+      };
+    });
 });
 it("アニメ専門候補を同名の関連一般画像より優先する", async () => {
   mock.wiki.mockResolvedValue({

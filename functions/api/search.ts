@@ -1,3 +1,4 @@
+import { animeSearch } from "../../server/anime.ts";
 import { catalog, unwanted, type ArtworkEnv } from "../../server/artwork.ts";
 import { food } from "../../server/food.ts";
 import { onRequestGet as legacy } from "../../server/legacy.ts";
@@ -19,7 +20,14 @@ export async function onRequestGet({
       { error: "検索語を入力してください" },
       { status: 400 },
     );
-  const key = type + ":" + q;
+  const key =
+    type +
+    ":" +
+    q +
+    ":" +
+    (env.ANIME_BLOCKED_SOURCES || "") +
+    ":" +
+    (env.ANIME_REQUIRE_PERMISSION || "");
   const cached = cache.get(key);
   if (cached && cached.until > Date.now()) return Response.json(cached.data);
   const warnings: string[] = [];
@@ -39,6 +47,35 @@ export async function onRequestGet({
   ]
     .filter((v, i, a) => a.indexOf(v) === i)
     .slice(0, 3);
+  if (type === "anime") {
+    const result = await animeSearch(
+      q,
+      variants,
+      env.ANIME_BLOCKED_SOURCES,
+      env.ANIME_REQUIRE_PERMISSION === "true",
+    );
+    const data = {
+      ...result,
+      warnings:
+        result.status === "api_error"
+          ? ["アニメ検索APIに接続できませんでした"]
+          : [],
+      terms: variants,
+      emptyMessage:
+        result.status === "rights_unconfirmed"
+          ? "作品は見つかりましたが画像の利用条件が確認できません"
+          : result.status === "no_image"
+            ? "作品は見つかりましたが画像がありません"
+            : result.status === "api_error"
+              ? "検索サービスに接続できません"
+              : "適切な画像が見つかりません",
+    };
+    if (result.items.length) {
+      if (cache.size >= 100) cache.delete(cache.keys().next().value!);
+      cache.set(key, { until: Date.now() + 300000, data });
+    }
+    return Response.json(data);
+  }
   const curated = ["anime", "manga", "games", "movies", "characters"].includes(
     type,
   );
