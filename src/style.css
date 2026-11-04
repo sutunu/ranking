@@ -1595,3 +1595,30 @@ footer button {
     font-size: 11px;
   }
 }
+.direct-rank-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 22px;
+}
+.direct-rank-options button {
+  min-height: 56px;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 700;
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+.direct-rank-options .unranked-choice {
+  grid-column: 1/-1;
+  background: #30343b;
+  color: #e4e8ec;
+  font-size: 14px;
+}
+.artwork-label {
+  display: block;
+  font-size: 9px;
+  color: #98a68e;
+  line-height: 1.6;
+  margin-top: 3px;
+}

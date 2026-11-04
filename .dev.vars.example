@@ -1,0 +1,3 @@
+# Optional: store real values in Cloudflare Pages encrypted secrets, never Git.
+TMDB_API_KEY=
+RAWG_API_KEY=

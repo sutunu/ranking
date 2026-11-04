@@ -90,6 +90,16 @@ export async function wikipedia(q: string, correct = true) {
       if (spelling && spelling !== q) return wikipedia(spelling, false);
     } catch {}
   }
+  const titles = pages.map((p) => p.title).join(" ");
+  const intent = /[（(]アニメ[)）]/.test(titles)
+    ? "anime"
+    : /[（(]漫画[)）]/.test(titles)
+      ? "manga"
+      : /[（(]映画[)）]/.test(titles)
+        ? "movies"
+        : /[（(].*ゲーム.*[)）]/.test(titles)
+          ? "games"
+          : undefined;
   const terms = pages
     .slice(0, 2)
     .map((p) => ({ name: p.title, en: p.langlinks?.[0]?.["*"] }));
@@ -120,7 +130,7 @@ export async function wikipedia(q: string, correct = true) {
     } catch {}
   }
   const visible = pages.filter((p) => p.thumbnail && p.pageimage);
-  if (!visible.length) return { items: [], terms };
+  if (!visible.length) return { items: [], terms, intent };
   const files = await api("commons.wikimedia.org", {
     titles: visible.map((p) => "File:" + p.pageimage).join("|"),
     prop: "imageinfo",
@@ -156,5 +166,5 @@ export async function wikipedia(q: string, correct = true) {
       },
     ];
   });
-  return { items, terms };
+  return { items, terms, intent };
 }

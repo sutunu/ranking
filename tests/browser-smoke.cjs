@@ -138,6 +138,10 @@ fs.mkdirSync(artifact, { recursive: true });
     .fill("進撃の巨人");
   await page.getByRole("button", { name: "画像を検索", exact: true }).click();
   await page.locator(".result>button").click();
+  await page
+    .getByRole("dialog", { name: "どのランクに追加しますか？" })
+    .getByRole("button", { name: "未分類（未使用画像）", exact: true })
+    .click();
   await page.locator(".pool .tile").waitFor();
   console.log(
     JSON.stringify({

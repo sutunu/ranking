@@ -112,6 +112,10 @@ const { chromium } = require("@playwright/test");
   await p.getByRole("button", { name: "画像を検索", exact: true }).click();
   await p.locator(".result>button").first().waitFor({ timeout: 60000 });
   await p.locator(".result>button").first().click();
+  await p
+    .getByRole("dialog", { name: "どのランクに追加しますか？" })
+    .getByRole("button", { name: "未分類（未使用画像）", exact: true })
+    .click();
   await p.waitForFunction(
     () => document.querySelectorAll(".pool .tile").length === 2,
     { timeout: 40000 },

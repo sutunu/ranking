@@ -72,3 +72,56 @@ it("同一画像を除去して検索結果を短期キャッシュする", asyn
   expect(second).toEqual(first);
   expect(mock.wiki).toHaveBeenCalledTimes(1);
 });
+it("専門検索は候補がなくても一般写真で補充しない", async () => {
+  mock.wiki.mockResolvedValue({
+    items: [{ key: "wiki:cosplay", name: "コスプレ写真" }],
+    terms: [],
+  });
+  const d = await (await request("no-cover-query", "anime")).json();
+  expect(d.items).toEqual([]);
+  expect(d.emptyMessage).toBe("適切な画像が見つかりません");
+  expect(mock.legacy).toHaveBeenCalledTimes(1);
+  expect(
+    new URL(mock.legacy.mock.calls[0][0].request.url).searchParams.get("type"),
+  ).toBe("anime");
+});
+it("コスプレ・実写・ファンアートの候補を除外する", async () => {
+  mock.legacy.mockResolvedValue(
+    Response.json({
+      items: [
+        { key: "good", name: "作品ポスター" },
+        { key: "cos", name: "作品 cosplay" },
+        { key: "fan", name: "作品", credit: "fan art" },
+        { key: "actor", name: "作品 実写版" },
+      ],
+    }),
+  );
+  const d = await (await request("art-only", "anime")).json();
+  expect(d.items.map((i: any) => i.key)).toEqual(["good"]);
+});
+it("RAWG未設定時にゲームの一般写真を出さない", async () => {
+  const d = await (await request("pokemon-game", "games")).json();
+  expect(d.items).toEqual([]);
+  expect(d.warnings.join(" ")).toContain("利用できません");
+  expect(mock.legacy).not.toHaveBeenCalled();
+});
+it("一般ジャンルでも作品と判別できた場合はポスター検索へ切り替える", async () => {
+  mock.wiki.mockResolvedValue({
+    items: [{ key: "wiki-photo", name: "一般写真" }],
+    terms: [{ name: "作品" }],
+    intent: "anime",
+  });
+  mock.legacy.mockResolvedValue(
+    Response.json({
+      items: [
+        { key: "cover", name: "作品", artwork: "作品データベースのポスター" },
+      ],
+    }),
+  );
+  const d = await (await request("auto-artwork-query", "general")).json();
+  expect(d.items.map((i: any) => i.key)).toEqual(["cover"]);
+  expect(mock.legacy).toHaveBeenCalledTimes(1);
+  expect(
+    new URL(mock.legacy.mock.calls[0][0].request.url).searchParams.get("type"),
+  ).toBe("anime");
+});

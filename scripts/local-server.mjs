@@ -28,6 +28,10 @@ createServer(async (req, res) => {
     if (url.pathname === "/api/search" || url.pathname === "/api/image") {
       const response = await (url.pathname === "/api/search" ? search : image)({
         request: new Request(url),
+        env: {
+          TMDB_API_KEY: process.env.TMDB_API_KEY,
+          RAWG_API_KEY: process.env.RAWG_API_KEY,
+        },
       });
       res.writeHead(response.status, Object.fromEntries(response.headers));
       res.end(Buffer.from(await response.arrayBuffer()));

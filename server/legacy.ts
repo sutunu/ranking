@@ -30,13 +30,17 @@ export async function onRequestGet({ request }: Context) {
         if (data.errors) throw Error("検索に失敗しました");
         return Response.json({
           provider: "AniList",
-          items: data.data.Page.media.map((m: any) => ({
-            key: `anilist:${m.id}`,
-            name: m.title.native || m.title.romaji,
-            url: m.coverImage.large,
-            source: m.siteUrl,
-            credit: "AniList · 作品画像の権利は各権利者に帰属",
-          })),
+          items: data.data.Page.media
+            .filter((m: any) => m.coverImage?.large)
+            .map((m: any) => ({
+              key: `anilist:${m.id}`,
+              name: m.title.native || m.title.romaji,
+              url: m.coverImage.large,
+              source: m.siteUrl,
+              credit:
+                "AniList掲載のカバー画像 · 作品画像の権利は各権利者に帰属",
+              artwork: "作品データベースのカバー",
+            })),
         });
       } catch {
         const api = new URL(
@@ -64,7 +68,8 @@ export async function onRequestGet({ request }: Context) {
                 m.attributes.posterImage.medium ||
                 m.attributes.posterImage.small,
               source: `https://kitsu.app/${manga ? "manga" : "anime"}/${m.attributes.slug}`,
-              credit: "Kitsu · 作品画像の権利は各権利者に帰属",
+              credit: "Kitsu掲載のポスター · 作品画像の権利は各権利者に帰属",
+              artwork: "作品データベースのポスター",
             })),
         });
       }
@@ -99,6 +104,10 @@ export async function onRequestGet({ request }: Context) {
           {
             key: `commons:${p.pageid}`,
             name: p.title.replace("File:", "").replace(/\.[^.]+$/, ""),
+            topics: [
+              i.extmetadata.Categories?.value,
+              i.extmetadata.ImageDescription?.value,
+            ].join(" "),
             url: i.thumburl || i.url,
             source: i.descriptionurl,
             credit: [

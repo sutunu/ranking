@@ -64,7 +64,16 @@ type Result = {
   source: string;
   credit: string;
   urls?: string[];
+  artwork?: string;
 };
+function rankButtonText(color: string) {
+  const n = Number.parseInt(color.slice(1), 16);
+  return (((n >> 16) & 255) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) /
+    1000 <
+    145
+    ? "#ffffff"
+    : "#18201b";
+}
 function Tile({
   item,
   onSelect,
@@ -140,6 +149,8 @@ function Zone({
   );
 }
 function App() {
+  const [pendingAdd, setPendingAdd] = useState<Result | null>(null);
+  const [searched, setSearched] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const searchEpoch = useRef(0);
   const [boards, setBoards] = useState<Board[]>([]),
@@ -250,6 +261,7 @@ function App() {
   useEffect(() => {
     searchEpoch.current++;
     setSearching(false);
+    setSearched(false);
     if (board) {
       setKind(searchType(board.genre || "その他"));
       setResults([]);
@@ -324,14 +336,16 @@ function App() {
       if (epoch !== searchEpoch.current) return;
       if (!r.ok) throw Error(data.error || "検索できませんでした");
       setResults(data.items);
+      setSearched(true);
       setProvider(data.provider || "画像検索");
       if (data.warnings?.length) setNotice(data.warnings[0]);
       if (!data.items.length)
         setNotice(
-          "画像が見つかりません。別のキーワードや画像アップロードをお試しください。",
+          "適切な画像が見つかりません。検索語やジャンルを変えてお試しください。",
         );
     } catch {
       if (epoch !== searchEpoch.current) return;
+      setSearched(true);
       setNotice(
         "画像検索に接続できませんでした。少し待って再試行するか、アップロードをお試しください。",
       );
@@ -350,6 +364,8 @@ function App() {
       "media.kitsu.app",
       "media.kitsu.io",
       "images.openfoodfacts.org",
+      "image.tmdb.org",
+      "media.rawg.io",
     ].includes(u.hostname);
     const r = await fetch(
       known ? `/api/image?url=${encodeURIComponent(url)}` : url,
@@ -364,6 +380,7 @@ function App() {
   async function addImage(
     blob: Blob,
     meta: { name: string; key: string; source?: string; credit?: string },
+    target = "pool",
   ) {
     if (!board) return;
     if (allItems(board).some((i) => i.key === meta.key)) {
@@ -377,24 +394,30 @@ function App() {
       setNotice("同じ画像は追加済みです");
       return;
     }
+    const item: Item = {
+      id: uid(),
+      src,
+      name: meta.name,
+      key: meta.key,
+      source: meta.source || "",
+      credit: meta.credit || "アップロード画像（権利を確認してご利用ください）",
+    };
+    if (target !== "pool" && !latest.ranks.some((r) => r.id === target))
+      throw Error("追加先のランクが削除されました。もう一度選択してください");
     commit({
       ...latest,
-      pool: [
-        ...latest.pool,
-        {
-          id: uid(),
-          src,
-          name: meta.name,
-          key: meta.key,
-          source: meta.source || "",
-          credit:
-            meta.credit || "アップロード画像（権利を確認してご利用ください）",
-        },
-      ],
+      pool: target === "pool" ? [...latest.pool, item] : latest.pool,
+      ranks: latest.ranks.map((r) =>
+        r.id === target ? { ...r, items: [...r.items, item] } : r,
+      ),
     });
-    setNotice("未分類エリアに追加しました");
+    setNotice(
+      target === "pool"
+        ? "未分類エリアに追加しました"
+        : `${latest.ranks.find((r) => r.id === target)?.name}に追加しました`,
+    );
   }
-  async function addResult(r: Result) {
+  async function addResult(r: Result, target = "pool") {
     if (busy) return;
     setBusy(true);
     try {
@@ -402,7 +425,7 @@ function App() {
       let added = false;
       for (const url of [...new Set([r.url, ...(r.urls || [])])]) {
         try {
-          await addImage(await remoteBlob(url), r);
+          await addImage(await remoteBlob(url), r, target);
           added = true;
           break;
         } catch (e) {
@@ -848,6 +871,7 @@ function App() {
                         setSearching(false);
                         setKind(e.target.value);
                         setResults([]);
+                        setSearched(false);
                       }}
                     >
                       <option value="anime">アニメ</option>
@@ -893,7 +917,7 @@ function App() {
                         <div className="result" key={r.key}>
                           <button
                             disabled={busy || added}
-                            onClick={() => addResult(r)}
+                            onClick={() => setPendingAdd(r)}
                             aria-label={`${r.name}を追加`}
                             title={`${r.name}を追加`}
                           >
@@ -914,6 +938,9 @@ function App() {
                             </span>
                           </button>
                           <strong title={r.name}>{r.name}</strong>
+                          {r.artwork && (
+                            <small className="artwork-label">{r.artwork}</small>
+                          )}
                           {failedImages.includes(r.key) && (
                             <small className="image-error">
                               取得失敗：別の候補をお試しください
@@ -932,7 +959,11 @@ function App() {
                       <Search size={32} />
                       <span>✦</span>
                     </div>
-                    <h3>次の「最高」を見つけよう。</h3>
+                    <h3>
+                      {searched
+                        ? "適切な画像が見つかりません"
+                        : "次の「最高」を見つけよう。"}
+                    </h3>
                     <p>
                       アニメ、食べ物、動物、スポーツ。
                       <br />
@@ -942,9 +973,7 @@ function App() {
                 )}
                 <div className="source-note">
                   <span className="status-dot" />
-                  {kind === "anime"
-                    ? `Powered by ${provider}`
-                    : "Powered by Wikimedia Commons"}
+                  {`Powered by ${provider}`}
                   <p>
                     {kind === "anime"
                       ? "日本語・英語の作品名に対応。画像の権利は各権利者に帰属します。"
@@ -1262,6 +1291,48 @@ function App() {
             </button>
           </div>
           <p className="helper">削除したランクの画像は未分類へ移動します。</p>
+        </Modal>
+      )}
+      {pendingAdd && (
+        <Modal
+          title="どのランクに追加しますか？"
+          close={() => setPendingAdd(null)}
+        >
+          <div className="selected-item">
+            <img
+              src={`/api/image?url=${encodeURIComponent(pendingAdd.url)}`}
+              alt={pendingAdd.name}
+            />
+            <div>
+              <strong>{pendingAdd.name}</strong>
+              <p>{pendingAdd.artwork || "追加先を選んでください"}</p>
+            </div>
+          </div>
+          <div className="direct-rank-options">
+            {board.ranks.map((r) => (
+              <button
+                key={r.id}
+                style={{ background: r.color, color: rankButtonText(r.color) }}
+                onClick={() => {
+                  const result = pendingAdd;
+                  setPendingAdd(null);
+                  void addResult(result, r.id);
+                }}
+              >
+                {r.name}
+              </button>
+            ))}
+            <button
+              className="unranked-choice"
+              onClick={() => {
+                const result = pendingAdd;
+                setPendingAdd(null);
+                void addResult(result, "pool");
+              }}
+            >
+              未分類（未使用画像）
+            </button>
+          </div>
         </Modal>
       )}
       {createOpen && (

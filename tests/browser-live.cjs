@@ -15,27 +15,57 @@ fs.mkdirSync("artifacts", { recursive: true });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(process.env.BASE_URL || "http://127.0.0.1:8788");
+  await page.getByRole("button", { name: "SSの設定", exact: true }).tap();
+  await page.getByLabel("ランク名", { exact: true }).fill("最上位");
+  await page.getByLabel("背景色", { exact: true }).fill("#123456");
+  await page.getByRole("button", { name: "変更を保存", exact: true }).tap();
+  await page.getByRole("button", { name: "ランクを追加", exact: true }).tap();
+  await page.getByLabel("ランキングのジャンル").selectOption("アニメ");
   await page
     .getByRole("textbox", { name: "画像検索キーワード" })
     .fill("進撃の巨人");
   await page.getByRole("button", { name: "画像を検索", exact: true }).tap();
   await page.locator(".result>button").first().waitFor({ timeout: 40000 });
   console.log("live search results", await page.locator(".result").count());
+  if (
+    !(await page.locator(".artwork-label").first().innerText()).includes(
+      "作品データベース",
+    )
+  )
+    throw Error("unclassified photo result");
   await page.locator(".result>button").nth(0).tap();
-  await page.locator(".pool .tile").waitFor({ timeout: 30000 });
-  console.log("live image added");
+  const chooser = page.getByRole("dialog", {
+    name: "どのランクに追加しますか？",
+  });
+  await chooser.waitFor();
+  if ((await chooser.locator(".direct-rank-options button").count()) !== 8)
+    throw Error("rank options missing");
+  if (
+    !(
+      await chooser
+        .getByRole("button", { name: "最上位", exact: true })
+        .getAttribute("style")
+    ).includes("18, 52, 86")
+  )
+    throw Error("rank color mismatch");
+  await page.screenshot({ path: "artifacts/rank-picker-mobile.png" });
+  await chooser.getByRole("button", { name: "最上位", exact: true }).tap();
+  await page
+    .locator(".tier-row")
+    .first()
+    .locator(".tile")
+    .waitFor({ timeout: 30000 });
+  if (await page.locator(".pool .tile").count())
+    throw Error("direct add incorrectly used pool");
+  console.log("direct rank addition passed");
   await page.locator(".result>button").nth(1).tap();
+  await page
+    .getByRole("dialog", { name: "どのランクに追加しますか？" })
+    .getByRole("button", { name: "最上位", exact: true })
+    .tap();
   await page.waitForFunction(
-    () => document.querySelectorAll(".pool .tile").length === 2,
+    () => document.querySelectorAll(".tier-row:first-child .tile").length === 2,
   );
-  console.log("second image added");
-  for (let i = 0; i < 2; i++) {
-    await page.locator(".pool .tile").first().tap();
-    await page
-      .locator(".move-options button")
-      .filter({ hasText: /^SS$/ })
-      .tap();
-  }
   await page
     .locator(".tier-row")
     .first()
@@ -112,7 +142,7 @@ fs.mkdirSync("artifacts", { recursive: true });
       passed: [
         "live Japanese Kitsu fallback search",
         "real remote image download",
-        "touch tap move",
+        "direct rank selection with custom name/color and added rank",
         "long press touch drag",
         "touch same-rank reorder",
         "PNG with real external artwork",

@@ -12,6 +12,8 @@ export async function onRequestGet({ request }: { request: Request }) {
         "media.kitsu.app",
         "media.kitsu.io",
         "images.openfoodfacts.org",
+        "image.tmdb.org",
+        "media.rawg.io",
       ].includes(url.hostname) ||
       url.port ||
       url.username ||
@@ -36,6 +38,8 @@ export async function onRequestGet({ request }: { request: Request }) {
         "media.kitsu.app",
         "media.kitsu.io",
         "images.openfoodfacts.org",
+        "image.tmdb.org",
+        "media.rawg.io",
       ].includes(u.hostname);
     for (let hop = 0; hop < 4; hop++) {
       if (!allowed(current))
