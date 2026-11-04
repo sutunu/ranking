@@ -78,7 +78,7 @@ TMDB / RAWG、漫画専用・人物専用APIは未接続です。それらのジ
 ## Cloudflare Pagesへ公開
 
 1. このリポジトリをGitHubへ反映します。
-2. Cloudflareの **Workers & Pages → Create → Pages → Connect to Git** から`sutunu/ranking`を選びます。公開準備用ブランチ`codex/tier-studio`をProduction branchに指定します（既定ブランチへ取り込んだ場合はそのブランチを指定）。
+2. Cloudflareの **Workers & Pages → Create → Pages → Connect to Git** から`sutunu/ranking`を選びます。Production branchに`main`を指定します。フレームワークプリセットは`Vite`、ルートディレクトリは空欄（リポジトリ直下）にします。
 3. ビルドコマンドを`npm run build`、出力ディレクトリを`dist`、ルートディレクトリをこのプロジェクトのルートに設定します。Nodeバージョンは24を指定します。
 4. デプロイすると`functions/api/search.ts`と`functions/api/image.ts`も実行されます。単なる`dist`の静的アップロードではAPIが動かないので、Git連携またはWranglerを使います。
 5. 検索・画像追加・PNG保存を公開URLで確認してください。
