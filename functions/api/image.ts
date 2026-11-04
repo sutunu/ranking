@@ -1,4 +1,4 @@
-// Restricted image fetcher: redirects and arbitrary destinations are deliberately disallowed.
+// Image fetcher: every redirect destination is validated against the same allowlist.
 export async function onRequestGet({ request }: { request: Request }) {
   try {
     const raw = new URL(request.url).searchParams.get("url") || "";
@@ -10,6 +10,8 @@ export async function onRequestGet({ request }: { request: Request }) {
         "thumb.wikimedia.org",
         "s4.anilist.co",
         "media.kitsu.app",
+        "media.kitsu.io",
+        "images.openfoodfacts.org",
       ].includes(url.hostname) ||
       url.port ||
       url.username ||
@@ -19,12 +21,42 @@ export async function onRequestGet({ request }: { request: Request }) {
         "対応していない画像URLです。端末からアップロードしてください。",
         { status: 400 },
       );
-    const r = await fetch(url, {
-      redirect: "error",
-      signal: AbortSignal.timeout(15000),
-      headers: { "User-Agent": "TierStudio/1.0" },
-    });
-    const type = r.headers.get("content-type")?.split(";")[0] || "";
+    const deadline = AbortSignal.timeout(12000);
+    let current = url;
+    let r: Response | undefined;
+    const allowed = (u: URL) =>
+      u.protocol === "https:" &&
+      !u.port &&
+      !u.username &&
+      !u.password &&
+      [
+        "upload.wikimedia.org",
+        "thumb.wikimedia.org",
+        "s4.anilist.co",
+        "media.kitsu.app",
+        "media.kitsu.io",
+        "images.openfoodfacts.org",
+      ].includes(u.hostname);
+    for (let hop = 0; hop < 4; hop++) {
+      if (!allowed(current))
+        return new Response("許可されていない画像配信先です", { status: 400 });
+      r = await fetch(current, {
+        redirect: "manual",
+        signal: deadline,
+        headers: {
+          "User-Agent": "TierStudio/2.0 (https://github.com/sutunu/ranking)",
+          Accept: "image/avif,image/webp,image/*",
+        },
+      });
+      if (r.status >= 300 && r.status < 400 && r.headers.has("location")) {
+        current = new URL(r.headers.get("location")!, current);
+        continue;
+      }
+      break;
+    }
+    if (!r) return new Response("画像配信先に接続できません", { status: 502 });
+    const type =
+      r.headers.get("content-type")?.split(";")[0].trim().toLowerCase() || "";
     if (
       !r.ok ||
       ![

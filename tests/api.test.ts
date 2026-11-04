@@ -1,6 +1,6 @@
 import { it, expect, vi, afterEach } from "vitest";
 import { onRequestGet as image } from "../functions/api/image";
-import { onRequestGet as search } from "../functions/api/search";
+import { onRequestGet as search } from "../server/legacy";
 afterEach(() => vi.unstubAllGlobals());
 it("画像プロキシは任意ホスト・認証・HTTPを拒否する", async () => {
   const fetch = vi.fn();
@@ -32,24 +32,22 @@ it("検索は空文字を拒否する", async () => {
 it("AniList候補を日本語と出典付きで返す", async () => {
   vi.stubGlobal(
     "fetch",
-    vi
-      .fn()
-      .mockResolvedValue(
-        Response.json({
-          data: {
-            Page: {
-              media: [
-                {
-                  id: 1,
-                  title: { native: "作品", romaji: "Work" },
-                  coverImage: { large: "https://s4.anilist.co/a.jpg" },
-                  siteUrl: "https://anilist.co/anime/1",
-                },
-              ],
-            },
+    vi.fn().mockResolvedValue(
+      Response.json({
+        data: {
+          Page: {
+            media: [
+              {
+                id: 1,
+                title: { native: "作品", romaji: "Work" },
+                coverImage: { large: "https://s4.anilist.co/a.jpg" },
+                siteUrl: "https://anilist.co/anime/1",
+              },
+            ],
           },
-        }),
-      ),
+        },
+      }),
+    ),
   );
   const response = await search({
     request: new Request("https://example.com/api/search?q=test&type=anime"),
@@ -108,4 +106,49 @@ it("AniListが利用不可の場合Kitsuにフォールバックする", async (
     provider: "Kitsu",
     items: [{ name: "進撃の巨人", key: "kitsu:7442" }],
   });
+});
+it("許可ホスト内の転送のみ追跡して画像を返す", async () => {
+  const f = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        headers: { Location: "https://media.kitsu.app/new.jpg" },
+      }),
+    )
+    .mockResolvedValueOnce(
+      new Response(new Uint8Array([1, 2]), {
+        headers: { "Content-Type": "image/jpeg" },
+      }),
+    );
+  vi.stubGlobal("fetch", f);
+  expect(
+    (
+      await image({
+        request: new Request(
+          "https://example.com/api/image?url=https://media.kitsu.app/old.jpg",
+        ),
+      })
+    ).status,
+  ).toBe(200);
+  expect(f).toHaveBeenCalledTimes(2);
+});
+it("転送先が内部ネットワークなら取得前に拒否する", async () => {
+  const f = vi.fn().mockResolvedValue(
+    new Response(null, {
+      status: 302,
+      headers: { Location: "http://127.0.0.1/private" },
+    }),
+  );
+  vi.stubGlobal("fetch", f);
+  expect(
+    (
+      await image({
+        request: new Request(
+          "https://example.com/api/image?url=https://media.kitsu.app/a.jpg",
+        ),
+      })
+    ).status,
+  ).toBe(400);
+  expect(f).toHaveBeenCalledTimes(1);
 });

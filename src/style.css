@@ -1481,3 +1481,117 @@ footer button {
     bottom: 77px;
   }
 }
+.genre-picker {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.genre-picker select,
+.library-filters select,
+.library-filters input,
+.genre-add input {
+  background: #202328;
+  color: #dce0e5;
+  border: 1px solid #41464c;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 12px;
+  min-height: 44px;
+}
+.library-filters {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+}
+.genre-add {
+  display: flex;
+  gap: 8px;
+}
+.genre-add input {
+  width: 100%;
+}
+.genre-list {
+  max-height: 50dvh;
+  overflow: auto;
+  margin-top: 16px;
+}
+.genre-list > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #353940;
+  gap: 8px;
+}
+.genre-list small {
+  color: #9ca6af;
+}
+.image-error {
+  display: block;
+  font-size: 10px;
+  color: #f2aaaa;
+}
+.result > a {
+  font-size: 10px;
+}
+.rank-settings {
+  width: 30px;
+}
+.dropzone {
+  padding-right: 30px;
+}
+.suggestions,
+.privacy-note,
+.source-note p {
+  display: none;
+}
+.intro {
+  padding: 20px 0;
+}
+.search-empty {
+  min-height: 180px;
+}
+.intro h1 {
+  font-size: 25px;
+}
+@media (max-width: 520px) {
+  .header-right .button {
+    min-height: 44px;
+  }
+  .result > button {
+    min-height: 130px;
+  }
+  .result strong {
+    font-size: 12px;
+  }
+  .tabs button {
+    font-size: 12px;
+    min-height: 44px;
+  }
+  .search-field input {
+    font-size: 16px;
+  }
+  .source-select select {
+    font-size: 14px;
+  }
+  .icon-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .toolbar .icon-btn {
+    min-width: 35px;
+  }
+  .rank-settings {
+    width: 28px;
+  }
+  .dropzone {
+    padding-right: 28px;
+  }
+  .pool-heading > span {
+    font-size: 10px;
+  }
+  .source-note {
+    font-size: 11px;
+  }
+}

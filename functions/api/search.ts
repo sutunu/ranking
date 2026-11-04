@@ -1,119 +1,102 @@
-interface Context {
-  request: Request;
-}
-export async function onRequestGet({ request }: Context) {
-  const url = new URL(request.url);
-  const q = url.searchParams.get("q")?.trim().slice(0, 120);
+import { food } from "../../server/food.ts";
+import { onRequestGet as legacy } from "../../server/legacy.ts";
+import { wikipedia, relevance } from "../../server/discovery.ts";
+const cache = new Map<string, { until: number; data: unknown }>();
+export async function onRequestGet({ request }: { request: Request }) {
+  const u = new URL(request.url),
+    q = u.searchParams.get("q")?.normalize("NFKC").trim().slice(0, 120),
+    type = u.searchParams.get("type") || "general";
   if (!q)
     return Response.json(
       { error: "検索語を入力してください" },
       { status: 400 },
     );
+  const key = type + ":" + q;
+  const cached = cache.get(key);
+  if (cached && cached.until > Date.now()) return Response.json(cached.data);
+  const warnings: string[] = [];
+  let wiki: { items: any[]; terms: any[] } = { items: [], terms: [] };
   try {
-    if (url.searchParams.get("type") === "anime") {
-      try {
-        const response = await fetch("https://graphql.anilist.co", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({
-            query:
-              "query ($q: String) { Page(perPage: 24) { media(search: $q, type: ANIME, isAdult: false) { id title { romaji native } coverImage { large } siteUrl } } }",
-            variables: { q },
-          }),
-          signal: AbortSignal.timeout(15000),
-        });
-        if (!response.ok) throw Error("AniList が応答しませんでした");
-        const data: any = await response.json();
-        if (data.errors) throw Error("検索に失敗しました");
-        return Response.json({
-          provider: "AniList",
-          items: data.data.Page.media.map((m: any) => ({
-            key: `anilist:${m.id}`,
-            name: m.title.native || m.title.romaji,
-            url: m.coverImage.large,
-            source: m.siteUrl,
-            credit: "AniList · 作品画像の権利は各権利者に帰属",
-          })),
-        });
-      } catch {
-        const api = new URL("https://kitsu.io/api/edge/anime");
-        api.searchParams.set("filter[text]", q);
-        api.searchParams.set("page[limit]", "20");
-        const fallback = await fetch(api, {
-          headers: { Accept: "application/vnd.api+json" },
-          signal: AbortSignal.timeout(15000),
-        });
-        if (!fallback.ok)
-          throw Error(
-            "アニメ検索サービスに接続できません。別のジャンルかアップロードをお試しください",
-          );
-        const data: any = await fallback.json();
-        return Response.json({
-          provider: "Kitsu",
-          items: (data.data || [])
-            .filter((m: any) => m.attributes?.posterImage && !m.attributes.nsfw)
-            .map((m: any) => ({
-              key: `kitsu:${m.id}`,
-              name: m.attributes.titles?.ja_jp || m.attributes.canonicalTitle,
-              url:
-                m.attributes.posterImage.medium ||
-                m.attributes.posterImage.small,
-              source: `https://kitsu.app/anime/${m.attributes.slug}`,
-              credit: "Kitsu · 作品画像の権利は各権利者に帰属",
-            })),
-        });
-      }
-    }
-    const api = new URL("https://commons.wikimedia.org/w/api.php");
-    Object.entries({
-      action: "query",
-      format: "json",
-      generator: "search",
-      gsrsearch: `${q} filetype:bitmap`,
-      gsrnamespace: "6",
-      gsrlimit: "24",
-      prop: "imageinfo",
-      iiprop: "url|extmetadata",
-      iiurlwidth: "400",
-    }).forEach(([k, v]) => api.searchParams.set(k, v));
-    const response = await fetch(api, {
-      headers: { "User-Agent": "TierStudio/1.0 (image ranking application)" },
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!response.ok) throw Error("Wikimedia が応答しませんでした");
-    const data: any = await response.json();
-    const clean = (s: string = "") => s.replace(/<[^>]*>/g, "").slice(0, 1000);
-    return Response.json({
-      provider: "Wikimedia Commons",
-      items: Object.values(data.query?.pages || {}).flatMap((p: any) => {
-        const i = p.imageinfo?.[0];
-        if (!i || !i.extmetadata?.LicenseShortName?.value) return [];
-        return [
-          {
-            key: `commons:${p.pageid}`,
-            name: p.title.replace("File:", "").replace(/\.[^.]+$/, ""),
-            url: i.thumburl || i.url,
-            source: i.descriptionurl,
-            credit: [
-              clean(i.extmetadata.Artist?.value),
-              clean(i.extmetadata.LicenseShortName?.value),
-              clean(i.extmetadata.LicenseUrl?.value),
-              "サムネイル化・トリミングあり",
-              clean(i.extmetadata.Attribution?.value),
-            ]
-              .filter(Boolean)
-              .join(" · "),
-          },
-        ];
-      }),
-    });
-  } catch (e) {
-    return Response.json(
-      { error: e instanceof Error ? e.message : "検索に失敗しました" },
-      { status: 502 },
-    );
+    wiki = await wikipedia(q);
+  } catch {
+    warnings.push("Wikipediaに接続できませんでした");
   }
+  const variants = [
+    q,
+    ...wiki.terms.flatMap((t) => [t.name, t.en]).filter(Boolean),
+  ]
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .slice(0, 3);
+  let items: any[] = [...wiki.items];
+  if (type === "snacks" || type === "food") {
+    try {
+      items.unshift(...(await food(q)));
+    } catch {
+      warnings.push(
+        "食品データベースは一時的に利用できません。Wikipedia等の候補を表示しています。",
+      );
+    }
+  }
+  const load = async (term: string, t: string) => {
+    try {
+      const r = await legacy({
+        request: new Request(
+          `https://local/api/search?q=${encodeURIComponent(term)}&type=${t}`,
+        ),
+      });
+      const d = (await r.json()) as any;
+      if (r.ok) return d.items || [];
+      warnings.push(d.error);
+      return [];
+    } catch {
+      return [];
+    }
+  };
+  if (type === "anime" || type === "manga") {
+    const anime = await load(variants.find((v) => v !== q) || q, type);
+    items = [...anime.map((i: any) => ({ ...i, rank: 200 })), ...items];
+    if (!anime.length && variants.length > 1)
+      items.push(...(await load(q, type)));
+  }
+  if (type === "general" || items.length < 4) {
+    items.push(...(await load(wiki.terms[0]?.en || q, "general")));
+  }
+  const unique = new Map<string, any>();
+  for (const item of items) {
+    if (!unique.has(item.key)) unique.set(item.key, item);
+  }
+  const topics: Record<string, RegExp> = {
+    snacks: /菓子|食品|製菓/,
+    food: /料理|食品|食材/,
+    games: /ゲーム/,
+    movies: /映画/,
+    characters: /キャラクター/,
+    anime: /アニメ/,
+    manga: /漫画/,
+  };
+  const score = (i: any) =>
+    relevance(i.name, q) +
+    (i.rank >= 200 ? 100 : 0) +
+    (topics[type]?.test(i.topics || "") ? 25 : 0);
+  items = [...unique.values()]
+    .sort((a, b) => score(b) - score(a) || (b.rank || 0) - (a.rank || 0))
+    .slice(0, 40);
+  const data = {
+    provider:
+      type === "anime"
+        ? "AniList / Kitsu / Wikipedia"
+        : type === "snacks" || type === "food"
+          ? "Wikipedia / Wikimedia Commons / Open Food Facts"
+          : "Wikipedia / Wikimedia Commons",
+    items,
+    warnings,
+    terms: variants,
+  };
+  if (items.length) {
+    if (cache.size >= 100) cache.delete(cache.keys().next().value!);
+    cache.set(key, { until: Date.now() + 300000, data });
+  }
+  return Response.json(data, {
+    status: items.length || !warnings.length ? 200 : 502,
+  });
 }

@@ -8,6 +8,7 @@ export type Item = {
 };
 export type Rank = { id: string; name: string; color: string; items: Item[] };
 export type Board = {
+  genre?: string;
   id: string;
   title: string;
   ranks: Rank[];
@@ -17,6 +18,7 @@ export type Board = {
 export const uid = () => crypto.randomUUID();
 export const newBoard = (): Board => ({
   id: uid(),
+  genre: "その他",
   title: "マイ・ティアリスト",
   ranks: ["SS", "S", "A", "B", "C", "D"].map((name, i) => ({
     id: uid(),
@@ -71,6 +73,10 @@ export function parseBoards(value: unknown): Board[] {
       typeof b.id !== "string" ||
       ids.has(b.id) ||
       typeof b.title !== "string" ||
+      (b.genre !== undefined &&
+        (typeof b.genre !== "string" ||
+          !b.genre.trim() ||
+          b.genre.length > 40)) ||
       typeof b.updated !== "number" ||
       !Number.isFinite(b.updated) ||
       !Array.isArray(b.ranks) ||

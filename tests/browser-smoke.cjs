@@ -23,16 +23,14 @@ fs.mkdirSync(artifact, { recursive: true });
     fullPage: true,
   });
   await page.getByRole("button", { name: "アップロード", exact: true }).click();
-  await page
-    .locator(".upload-area input")
-    .setInputFiles({
-      name: "test.png",
-      mimeType: "image/png",
-      buffer: Buffer.from(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=",
-        "base64",
-      ),
-    });
+  await page.locator(".upload-area input").setInputFiles({
+    name: "test.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
   await page.locator(".pool .tile").waitFor();
   await page.locator(".pool .tile").click();
   await page.getByRole("button", { name: "SS", exact: true }).last().click();
@@ -96,10 +94,11 @@ fs.mkdirSync(artifact, { recursive: true });
   await page
     .getByRole("button", { name: "新しいランキング", exact: true })
     .click();
+  await page.getByRole("button", { name: "作成する", exact: true }).click();
   if (
     (await page
       .getByRole("textbox", { name: "ランキングタイトル", exact: true })
-      .inputValue()) !== "マイ・ティアリスト"
+      .inputValue()) !== "アニメランキング"
   )
     throw Error("new board failed");
   await page.waitForTimeout(6000);

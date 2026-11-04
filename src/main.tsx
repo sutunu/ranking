@@ -56,12 +56,14 @@ import {
 } from "./model";
 import { download, exportPng } from "./export";
 import "./style.css";
+import { readSnapshot, defaultGenres, searchType } from "./storage";
 type Result = {
   key: string;
   name: string;
   url: string;
   source: string;
   credit: string;
+  urls?: string[];
 };
 function Tile({
   item,
@@ -138,6 +140,8 @@ function Zone({
   );
 }
 function App() {
+  const [loadError, setLoadError] = useState(false);
+  const searchEpoch = useRef(0);
   const [boards, setBoards] = useState<Board[]>([]),
     [active, setActive] = useState(""),
     [loaded, setLoaded] = useState(false),
@@ -160,11 +164,22 @@ function App() {
     [direct, setDirect] = useState(""),
     [dragging, setDragging] = useState<string | null>(null),
     [png, setPng] = useState<Blob | null>(null);
+  const [genres, setGenres] = useState(defaultGenres),
+    [libraryGenre, setLibraryGenre] = useState(""),
+    [libraryQ, setLibraryQ] = useState(""),
+    [genreOpen, setGenreOpen] = useState(false),
+    [newGenre, setNewGenre] = useState(""),
+    [createOpen, setCreateOpen] = useState(false),
+    [createGenre, setCreateGenre] = useState("アニメ"),
+    [createTitle, setCreateTitle] = useState(""),
+    [failedImages, setFailedImages] = useState<string[]>([]);
   const [history, setHistory] = useState<Board[]>([]),
     [future, setFuture] = useState<Board[]>([]);
   const importRef = useRef<HTMLInputElement>(null),
     replaceRef = useRef<HTMLInputElement>(null);
   const saveChain = useRef(Promise.resolve());
+  const boardsRef = useRef(boards);
+  boardsRef.current = boards;
   const board = boards.find((b) => b.id === active);
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -177,9 +192,13 @@ function App() {
   );
   useEffect(() => {
     get("tier-studio-v1")
-      .then((v) => {
+      .then(async (v) => {
         if (v) {
-          const data = parseBoards(v.boards);
+          const snapshot = readSnapshot(v);
+          if (v.version !== 2) await set("tier-studio-backup-v1", v);
+          const data = snapshot.boards;
+          setGenres(snapshot.genres);
+          setCreateGenre(snapshot.genres[0] || "その他");
           setBoards(data);
           setActive(
             data.some((b) => b.id === v.active) ? v.active : data[0].id,
@@ -192,9 +211,12 @@ function App() {
         setLoaded(true);
         setSaveState("保存済み");
       })
-      .catch(() =>
-        setNotice("保存データを読み込めませんでした。再読み込みしてください。"),
-      );
+      .catch(() => {
+        setLoadError(true);
+        setNotice(
+          "保存データを読み込めませんでした。保存内容は上書きしていません。",
+        );
+      });
   }, []);
   useEffect(() => {
     if (!loaded) return;
@@ -202,7 +224,9 @@ function App() {
     const persist = () => {
       saveChain.current = saveChain.current
         .catch(() => {})
-        .then(() => set("tier-studio-v1", { boards, active }))
+        .then(() =>
+          set("tier-studio-v1", { version: 2, boards, active, genres }),
+        )
         .then(() => setSaveState("自動保存済み"))
         .catch(() => setSaveState("保存失敗：JSONでバックアップしてください"));
     };
@@ -217,15 +241,26 @@ function App() {
       document.removeEventListener("visibilitychange", flush);
       window.removeEventListener("pagehide", persist);
     };
-  }, [boards, active, loaded]);
+  }, [boards, active, loaded, genres]);
   useEffect(() => {
     if (!notice) return;
     const t = setTimeout(() => setNotice(""), 6000);
     return () => clearTimeout(t);
   }, [notice]);
+  useEffect(() => {
+    searchEpoch.current++;
+    setSearching(false);
+    if (board) {
+      setKind(searchType(board.genre || "その他"));
+      setResults([]);
+    }
+  }, [active, board?.genre]);
   function commit(next: Board) {
     if (!board) return;
-    setHistory((h) => [...h.slice(-39), structuredClone(board)]);
+    setHistory((h) => [
+      ...h.slice(-39),
+      structuredClone(boardsRef.current.find((b) => b.id === next.id) || board),
+    ]);
     setFuture([]);
     setBoards((bs) =>
       bs.map((b) => (b.id === next.id ? { ...next, updated: Date.now() } : b)),
@@ -264,33 +299,44 @@ function App() {
       );
       return;
     }
-    const b = newBoard();
+    const b = {
+      ...newBoard(),
+      genre: createGenre,
+      title: createTitle.trim() || `${createGenre}ランキング`,
+    };
+    setCreateOpen(false);
+    setCreateTitle("");
     setBoards((bs) => [...bs, b]);
     switchBoard(b.id);
   }
   async function search(e?: React.FormEvent) {
     e?.preventDefault();
     if (!q.trim() || searching) return;
+    const epoch = ++searchEpoch.current;
     setSearching(true);
     setResults([]);
+    setFailedImages([]);
     try {
       const r = await fetch(
         `/api/search?q=${encodeURIComponent(q)}&type=${kind}`,
       );
       const data = await r.json();
+      if (epoch !== searchEpoch.current) return;
       if (!r.ok) throw Error(data.error || "検索できませんでした");
       setResults(data.items);
-      setProvider(data.provider || "AniList / Kitsu");
+      setProvider(data.provider || "画像検索");
+      if (data.warnings?.length) setNotice(data.warnings[0]);
       if (!data.items.length)
         setNotice(
           "画像が見つかりません。別のキーワードや画像アップロードをお試しください。",
         );
     } catch {
+      if (epoch !== searchEpoch.current) return;
       setNotice(
         "画像検索に接続できませんでした。少し待って再試行するか、アップロードをお試しください。",
       );
     } finally {
-      setSearching(false);
+      if (epoch === searchEpoch.current) setSearching(false);
     }
   }
   async function remoteBlob(url: string) {
@@ -302,6 +348,8 @@ function App() {
       "thumb.wikimedia.org",
       "s4.anilist.co",
       "media.kitsu.app",
+      "media.kitsu.io",
+      "images.openfoodfacts.org",
     ].includes(u.hostname);
     const r = await fetch(
       known ? `/api/image?url=${encodeURIComponent(url)}` : url,
@@ -323,14 +371,16 @@ function App() {
       return;
     }
     const src = await normalizeImage(blob);
-    if (allItems(board).some((i) => i.src === src)) {
+    const latest = boardsRef.current.find((b) => b.id === board.id);
+    if (!latest) throw Error("ランキングが削除されました");
+    if (allItems(latest).some((i) => i.src === src)) {
       setNotice("同じ画像は追加済みです");
       return;
     }
     commit({
-      ...board,
+      ...latest,
       pool: [
-        ...board.pool,
+        ...latest.pool,
         {
           id: uid(),
           src,
@@ -348,7 +398,21 @@ function App() {
     if (busy) return;
     setBusy(true);
     try {
-      await addImage(await remoteBlob(r.url), r);
+      let last: unknown;
+      let added = false;
+      for (const url of [...new Set([r.url, ...(r.urls || [])])]) {
+        try {
+          await addImage(await remoteBlob(url), r);
+          added = true;
+          break;
+        } catch (e) {
+          last = e;
+        }
+      }
+      if (!added) {
+        setFailedImages((f) => [...f, r.key]);
+        throw last || Error("別の画像候補を選んでください");
+      }
     } catch (e) {
       setNotice((e as Error).message);
     } finally {
@@ -424,7 +488,10 @@ function App() {
     const f = new File([png], `${board.title}.png`, { type: "image/png" });
     try {
       if (navigator.canShare?.({ files: [f] }))
-        await navigator.share({ files: [f], title: board.title });
+        await navigator.share({
+          files: [f],
+          title: board.title,
+        });
       else download(png, `${board.title}.png`);
     } catch (e) {
       if ((e as Error).name !== "AbortError")
@@ -436,7 +503,11 @@ function App() {
     try {
       if (file.size > 50 * 1024 * 1024)
         throw Error("JSONは50MB以下にしてください");
-      const incoming = parseBoards(JSON.parse(await file.text()));
+      const snapshot = readSnapshot(JSON.parse(await file.text()));
+      const incoming = snapshot.boards;
+      const combined = [...new Set([...genres, ...snapshot.genres])];
+      if (combined.length > 200) throw Error("ジャンルは合計200件までです");
+      setGenres(combined);
       if (boards.length + incoming.length > 100)
         throw Error("ランキングは合計100件まで復元できます");
       const copies = incoming.map((b) => ({
@@ -455,7 +526,26 @@ function App() {
     return (
       <main className="loading">
         <Layers size={36} />
-        <p>{notice || "スタジオを準備しています…"}</p>
+        <p>
+          {loadError
+            ? "保存データを読み込めませんでした。データは上書きしていません。"
+            : notice || "スタジオを準備しています…"}
+        </p>
+        {loadError && (
+          <button
+            className="button"
+            onClick={async () =>
+              download(
+                new Blob([JSON.stringify(await get("tier-studio-v1"))], {
+                  type: "application/json",
+                }),
+                "tier-studio-recovery.json",
+              )
+            }
+          >
+            元データをバックアップ
+          </button>
+        )}
       </main>
     );
   const count = allItems(board).length;
@@ -507,6 +597,26 @@ function App() {
           <main className="editor" id="ranking-editor">
             <div className="board-top">
               <div className="title-wrap">
+                <div className="genre-picker">
+                  <select
+                    aria-label="ランキングのジャンル"
+                    value={board.genre || "その他"}
+                    onChange={(e) =>
+                      commit({ ...board, genre: e.target.value })
+                    }
+                  >
+                    {genres.map((g) => (
+                      <option key={g}>{g}</option>
+                    ))}
+                  </select>
+                  <button
+                    className="icon-btn"
+                    aria-label="ジャンルを管理"
+                    onClick={() => setGenreOpen(true)}
+                  >
+                    <Settings2 size={16} />
+                  </button>
+                </div>
                 <span className="tiny-label">TIER LIST</span>
                 <input
                   aria-label="ランキングタイトル"
@@ -671,7 +781,12 @@ function App() {
                       "画像とランクを初期化しますか？取り消しで戻せます。",
                     )
                   )
-                    commit({ ...newBoard(), id: board.id, title: board.title });
+                    commit({
+                      ...newBoard(),
+                      id: board.id,
+                      title: board.title,
+                      genre: board.genre,
+                    });
                 }}
               >
                 ランキングを初期化
@@ -729,16 +844,20 @@ function App() {
                       aria-label="検索ジャンル"
                       value={kind}
                       onChange={(e) => {
+                        searchEpoch.current++;
+                        setSearching(false);
                         setKind(e.target.value);
                         setResults([]);
                       }}
                     >
-                      <option value="anime">
-                        アニメ作品 · AniList / Kitsu
-                      </option>
-                      <option value="general">
-                        すべてのジャンル · Wikimedia
-                      </option>
+                      <option value="anime">アニメ</option>
+                      <option value="manga">漫画・関連画像</option>
+                      <option value="snacks">お菓子・商品</option>
+                      <option value="games">ゲーム</option>
+                      <option value="movies">映画</option>
+                      <option value="characters">キャラクター</option>
+                      <option value="food">食べ物</option>
+                      <option value="general">一般検索に広げる</option>
                     </select>
                     <ChevronDown size={14} />
                   </label>
@@ -778,12 +897,28 @@ function App() {
                             aria-label={`${r.name}を追加`}
                             title={`${r.name}を追加`}
                           >
-                            <img src={r.url} alt={r.name} loading="lazy" />
+                            <img
+                              src={`/api/image?url=${encodeURIComponent(r.url)}`}
+                              alt={r.name}
+                              loading="lazy"
+                              onError={(e) => {
+                                const img = e.currentTarget;
+                                if (r.urls?.[0] && !img.dataset.retried) {
+                                  img.dataset.retried = "1";
+                                  img.src = `/api/image?url=${encodeURIComponent(r.urls[0])}`;
+                                }
+                              }}
+                            />
                             <span className="result-plus">
                               {added ? <Check size={18} /> : <Plus size={18} />}
                             </span>
                           </button>
                           <strong title={r.name}>{r.name}</strong>
+                          {failedImages.includes(r.key) && (
+                            <small className="image-error">
+                              取得失敗：別の候補をお試しください
+                            </small>
+                          )}
                           <a href={r.source} target="_blank" rel="noreferrer">
                             出典・利用条件 ↗
                           </a>
@@ -1129,71 +1264,215 @@ function App() {
           <p className="helper">削除したランクの画像は未分類へ移動します。</p>
         </Modal>
       )}
-      {library && (
-        <Modal title="マイランキング" close={() => setLibrary(false)}>
-          <button className="button primary full" onClick={addBoard}>
-            <Plus size={17} />
-            新しいランキング
-          </button>
-          <div className="library-list">
-            {boards.map((b) => (
-              <div className="library-item" key={b.id}>
+      {createOpen && (
+        <Modal title="新しいランキング" close={() => setCreateOpen(false)}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              addBoard();
+            }}
+          >
+            <label className="field">
+              ジャンル
+              <select
+                aria-label="作成するランキングのジャンル"
+                value={createGenre}
+                onChange={(e) => setCreateGenre(e.target.value)}
+              >
+                {genres.map((g) => (
+                  <option key={g}>{g}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              タイトル
+              <input
+                aria-label="新しいランキングのタイトル"
+                value={createTitle}
+                onChange={(e) => setCreateTitle(e.target.value)}
+                placeholder={`${createGenre}ランキング`}
+                maxLength={100}
+              />
+            </label>
+            <button className="button primary full" type="submit">
+              作成する
+            </button>
+          </form>
+        </Modal>
+      )}
+      {genreOpen && (
+        <Modal title="ジャンルを管理" close={() => setGenreOpen(false)}>
+          <form
+            className="genre-add"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const name = newGenre.trim();
+              if (!name || genres.includes(name) || genres.length >= 200) {
+                setNotice(
+                  "重複しないジャンル名を入力してください（200件まで）",
+                );
+                return;
+              }
+              setGenres((g) => [...g, name]);
+              setNewGenre("");
+            }}
+          >
+            <input
+              aria-label="新しいジャンル名"
+              placeholder="新しいジャンル"
+              maxLength={40}
+              value={newGenre}
+              onChange={(e) => setNewGenre(e.target.value)}
+            />
+            <button className="button primary">追加</button>
+          </form>
+          <div className="genre-list">
+            {genres.map((g) => (
+              <div key={g}>
+                <span>
+                  {g}{" "}
+                  <small>{boards.filter((b) => b.genre === g).length}件</small>
+                </span>
                 <button
-                  className="library-open"
-                  onClick={() => switchBoard(b.id)}
-                >
-                  <span>
-                    {b.id === active && <span className="status-dot" />}
-                    {b.title || "無題のランキング"}
-                  </span>
-                  <small>
-                    {allItems(b).length} 画像 ·{" "}
-                    {new Date(b.updated).toLocaleDateString("ja-JP")}
-                  </small>
-                </button>
-                <button
-                  className="icon-btn"
-                  title="複製"
-                  aria-label={`${b.title}を複製`}
-                  disabled={boards.length >= 100}
+                  className="button"
                   onClick={() => {
-                    const copy = {
-                      ...structuredClone(b),
-                      id: uid(),
-                      title: `${b.title} のコピー`,
-                      updated: Date.now(),
-                    };
-                    setBoards((bs) => [...bs, copy]);
-                    setNotice("ランキングを複製しました");
-                  }}
-                >
-                  <Copy size={16} />
-                </button>
-                <button
-                  className="icon-btn danger"
-                  title="削除"
-                  aria-label={`${b.title}を削除`}
-                  onClick={() => {
-                    if (
-                      !confirm(
-                        `「${b.title}」を削除しますか？この操作は元に戻せません。`,
-                      )
-                    )
+                    const name = prompt("ジャンル名を変更", g)?.trim();
+                    if (!name || name === g) return;
+                    if (name.length > 40 || genres.includes(name)) {
+                      setNotice("重複しない40文字以内の名前を入力してください");
                       return;
-                    const next = boards.filter((x) => x.id !== b.id);
-                    if (!next.length) next.push(newBoard());
-                    setBoards(next);
-                    if (active === b.id) {
-                      setActive(next[0].id);
-                      setHistory([]);
-                      setFuture([]);
                     }
+                    setGenres((gs) => gs.map((x) => (x === g ? name : x)));
+                    setHistory([]);
+                    setFuture([]);
+                    setBoards((bs) =>
+                      bs.map((b) =>
+                        b.genre === g ? { ...b, genre: name } : b,
+                      ),
+                    );
+                    if (createGenre === g) setCreateGenre(name);
+                    if (libraryGenre === g) setLibraryGenre(name);
                   }}
                 >
-                  <Trash2 size={16} />
+                  名前を変更
                 </button>
               </div>
             ))}
+          </div>
+        </Modal>
+      )}
+      {library && (
+        <Modal title="マイランキング" close={() => setLibrary(false)}>
+          <button
+            className="button primary full"
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus size={17} />
+            新しいランキング
+          </button>
+          <div className="library-filters">
+            <select
+              aria-label="ジャンルで絞り込み"
+              value={libraryGenre}
+              onChange={(e) => setLibraryGenre(e.target.value)}
+            >
+              <option value="">すべてのジャンル</option>
+              {genres.map((g) => (
+                <option key={g}>{g}</option>
+              ))}
+            </select>
+            <input
+              aria-label="保存したランキングを検索"
+              placeholder="ランキングを検索"
+              value={libraryQ}
+              onChange={(e) => setLibraryQ(e.target.value)}
+            />
+          </div>
+          <button className="button" onClick={() => setGenreOpen(true)}>
+            ジャンルを管理
+          </button>
+          <button
+            className="button"
+            onClick={() =>
+              download(
+                new Blob([JSON.stringify({ version: 2, boards, genres })], {
+                  type: "application/json",
+                }),
+                "tier-studio-backup.json",
+              )
+            }
+          >
+            すべてバックアップ
+          </button>
+          <div className="library-list">
+            {boards
+              .filter(
+                (b) =>
+                  (!libraryGenre || b.genre === libraryGenre) &&
+                  b.title.toLowerCase().includes(libraryQ.toLowerCase()),
+              )
+              .map((b) => (
+                <div className="library-item" key={b.id}>
+                  <button
+                    className="library-open"
+                    onClick={() => switchBoard(b.id)}
+                  >
+                    <span>
+                      {b.id === active && <span className="status-dot" />}
+                      {b.title || "無題のランキング"}
+                    </span>
+                    <small>
+                      {b.genre || "その他"} · {allItems(b).length} 画像 ·{" "}
+                      {new Date(b.updated).toLocaleDateString("ja-JP")}
+                    </small>
+                  </button>
+                  <button
+                    className="icon-btn"
+                    title="複製"
+                    aria-label={`${b.title}を複製`}
+                    disabled={boards.length >= 100}
+                    onClick={() => {
+                      const copy = {
+                        ...structuredClone(b),
+                        id: uid(),
+                        title: `${b.title} のコピー`,
+                        updated: Date.now(),
+                      };
+                      setBoards((bs) => [...bs, copy]);
+                      setNotice("ランキングを複製しました");
+                    }}
+                  >
+                    <Copy size={16} />
+                  </button>
+                  <button
+                    className="icon-btn danger"
+                    title="削除"
+                    aria-label={`${b.title}を削除`}
+                    onClick={() => {
+                      if (
+                        !confirm(
+                          `「${b.title}」を削除しますか？この操作は元に戻せません。`,
+                        )
+                      )
+                        return;
+                      const next = boards.filter((x) => x.id !== b.id);
+                      if (!next.length)
+                        next.push({
+                          ...newBoard(),
+                          genre: genres[0] || "その他",
+                        });
+                      setBoards(next);
+                      if (active === b.id) {
+                        setActive(next[0].id);
+                        setHistory([]);
+                        setFuture([]);
+                      }
+                    }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
           </div>
           <p className="helper">
             ランキング名はエディターのタイトル欄から変更できます。ブラウザのデータを削除すると保存内容も消えるため、JSONでバックアップしてください。
@@ -1279,6 +1558,7 @@ function Modal({
   return (
     <dialog
       ref={ref}
+      aria-label={title}
       className="modal"
       onCancel={close}
       onClick={(e) => {

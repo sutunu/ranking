@@ -12,7 +12,8 @@
     "test:browser": "node tests/browser-smoke.cjs",
     "start:local": "node scripts/local-server.mjs",
     "test:live": "node tests/browser-live.cjs",
-    "format": "prettier --write src functions scripts tests README.md index.html vite.config.ts tsconfig.json package.json"
+    "format": "prettier --write src server functions scripts tests README.md index.html vite.config.ts tsconfig.json package.json",
+    "test:genres": "node tests/browser-genres.cjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
