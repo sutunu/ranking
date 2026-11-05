@@ -1,3 +1,4 @@
+import { booksSearch } from "../../server/books.ts";
 import { animeAliases } from "../../server/anime-aliases.ts";
 import { animeSearch } from "../../server/anime.ts";
 import { catalog, unwanted, type ArtworkEnv } from "../../server/artwork.ts";
@@ -37,8 +38,9 @@ export async function onRequestGet({
     terms: [],
   };
   try {
-    wiki =
-      requestedType === "anime" ? await animeAliases(q) : await wikipedia(q);
+    wiki = ["anime", "manga", "books"].includes(requestedType)
+      ? await animeAliases(q)
+      : await wikipedia(q);
   } catch {
     warnings.push("Wikipediaに接続できませんでした");
   }
@@ -49,13 +51,79 @@ export async function onRequestGet({
   ]
     .filter((v, i, a) => a.indexOf(v) === i)
     .slice(0, 3);
-  if (type === "anime") {
-    const result = await animeSearch(
-      q,
-      variants,
-      env.ANIME_BLOCKED_SOURCES,
-      env.ANIME_REQUIRE_PERMISSION === "true",
+  if (["anime", "manga", "books"].includes(type)) {
+    const [animation, books] = await Promise.all([
+      type === "anime"
+        ? animeSearch(
+            q,
+            variants,
+            env.ANIME_BLOCKED_SOURCES,
+            env.ANIME_REQUIRE_PERMISSION === "true",
+          )
+        : (async () => {
+            try {
+              const r = await legacy({
+                request: new Request(
+                  "https://local/api/search?type=manga&q=" +
+                    encodeURIComponent(variants.find((t) => t !== q) || q),
+                ),
+              });
+              const d: any = await r.json();
+              return {
+                items: d.items || [],
+                missing: [],
+                diagnostics: [],
+                status: "ok",
+              };
+            } catch {
+              return {
+                items: [],
+                missing: [],
+                diagnostics: [],
+                status: "api_error",
+              };
+            }
+          })(),
+      booksSearch(
+        q,
+        variants,
+        env.ANIME_BLOCKED_SOURCES,
+        env.ANIME_REQUIRE_PERMISSION === "true",
+        env.GOOGLE_BOOKS_API_KEY,
+      ),
+    ]);
+    const result = {
+      ...animation,
+      items: [...animation.items, ...books.items],
+      missing: [...(animation.missing || []), ...books.missing],
+      diagnostics: [...animation.diagnostics, ...books.diagnostics],
+      provider:
+        "AniList / Kitsu / Jikan / Google Books / Open Library / NDL・openBD",
+    };
+    const excluded = new Set(
+      (env.ANIME_BLOCKED_SOURCES || "").split(/[\n,]/).map((v) => v.trim()),
     );
+    result.items = result.items.filter(
+      (i: any) =>
+        !excluded.has(i.key) &&
+        !excluded.has(i.url) &&
+        !excluded.has(i.source) &&
+        !unwanted(i),
+    );
+    if (env.ANIME_REQUIRE_PERMISSION === "true" && result.items.length) {
+      result.missing.push(
+        ...result.items.map((i: any) => ({
+          name: i.name,
+          status: "rights_unconfirmed",
+        })),
+      );
+      result.items = [];
+      result.status = "rights_unconfirmed";
+    }
+    if (result.items.length) result.status = "ok";
+    result.missing = result.missing
+      .filter((m: any) => !result.items.some((i: any) => i.name === m.name))
+      .slice(0, 5);
     const data = {
       ...result,
       warnings:

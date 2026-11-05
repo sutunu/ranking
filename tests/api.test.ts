@@ -152,3 +152,59 @@ it("転送先が内部ネットワークなら取得前に拒否する", async (
   ).toBe(400);
   expect(f).toHaveBeenCalledTimes(1);
 });
+it("Open Libraryの正規表紙アーカイブ転送だけを許可する", async () => {
+  const f = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        headers: {
+          Location:
+            "https://archive.org/download/l_covers_0012/l_covers_0012_62.zip/0012624901-L.jpg",
+        },
+      }),
+    )
+    .mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        headers: {
+          Location:
+            "https://ia800100.us.archive.org/view_archive.php?archive=/5/items/l_covers_0012/l_covers_0012_62.zip&file=0012624901-L.jpg",
+        },
+      }),
+    )
+    .mockResolvedValueOnce(
+      new Response(new Uint8Array([1]), {
+        headers: { "Content-Type": "image/jpeg" },
+      }),
+    );
+  vi.stubGlobal("fetch", f);
+  expect(
+    (
+      await image({
+        request: new Request(
+          "https://example.com/api/image?url=https://covers.openlibrary.org/b/id/12624901-L.jpg",
+        ),
+      })
+    ).status,
+  ).toBe(200);
+});
+it("Open Libraryからでも任意のArchiveファイルは拒否する", async () => {
+  const f = vi.fn().mockResolvedValue(
+    new Response(null, {
+      status: 302,
+      headers: { Location: "https://archive.org/download/private/file.txt" },
+    }),
+  );
+  vi.stubGlobal("fetch", f);
+  expect(
+    (
+      await image({
+        request: new Request(
+          "https://example.com/api/image?url=https://covers.openlibrary.org/b/id/1-L.jpg",
+        ),
+      })
+    ).status,
+  ).toBe(400);
+  expect(f).toHaveBeenCalledTimes(1);
+});

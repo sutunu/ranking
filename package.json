@@ -15,12 +15,14 @@
     "format": "prettier --write src server functions scripts tests README.md index.html vite.config.ts tsconfig.json package.json",
     "test:genres": "node tests/browser-genres.cjs",
     "test:anime": "node tests/anime-matrix.cjs",
-    "test:crop": "node tests/browser-crop.cjs"
+    "test:crop": "node tests/browser-crop.cjs",
+    "test:books": "node tests/browser-books.cjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "fast-xml-parser": "^5.12.0",
     "idb-keyval": "^6.2.2",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",

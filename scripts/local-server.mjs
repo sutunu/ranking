@@ -29,6 +29,7 @@ createServer(async (req, res) => {
       const response = await (url.pathname === "/api/search" ? search : image)({
         request: new Request(url),
         env: {
+          GOOGLE_BOOKS_API_KEY: process.env.GOOGLE_BOOKS_API_KEY,
           TMDB_API_KEY: process.env.TMDB_API_KEY,
           RAWG_API_KEY: process.env.RAWG_API_KEY,
           ANIME_BLOCKED_SOURCES: process.env.ANIME_BLOCKED_SOURCES,

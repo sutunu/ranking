@@ -2,6 +2,29 @@
 
 スマートフォンとPCで使える、ログイン不要のTierランキング作成アプリ。React / TypeScript / Vite、dnd-kit、IndexedDB、Cloudflare Pages Functionsで構成しています。
 
+## 漫画・小説の表紙も同じ検索へ統合
+
+アニメ検索にGoogle Books、Open Library、NDL→ISBN→openBDの書誌検索を並列で追加しました。書誌・巻ごとに候補を残し、同じ画像URLは重複除去します。「アニメ・漫画・小説のイラスト」が標準の作品検索で、「漫画・書籍の表紙」「小説・書籍の表紙」も選べます。候補には画像種別・取得元を表示します。Google BooksのGraphic Novelsは漫画として扱い、単にNovelという文字だけで小説に誤分類しません。巻数を許容した作品名の先頭一致を使い、同じ単語を含む無関係な本や明示的なfan fiction・非公式素材を除外します。メタデータの欠落まで画像内容を自動認定するものではありません。
+
+書籍検索は成功時30分、画像なし／エラー時30秒のキャッシュと同時要求共有を使います。ホスト単位でインスタンス内20回/分に制限し、429/503時にはRetry-Afterを尊重して休止します。全世界のWorker間で共有される制限ではありません。APIの一部が失敗してもポスターや他の表紙を表示します。
+
+画像プロキシにGoogle Books、Open Library、openBD配信ホストを追加。Open Library起点のときだけInternet Archiveの特定の表紙ZIP・画像パスへの正規転送を許可します。Archive全体の汎用プロキシにはしません。NDL書影の403やGoogle Booksの429は回避しません。
+
+### 提供元・利用条件
+
+- Google Books: https://developers.google.com/books/terms ／API利用・帰属表示を守り、書籍画像の権利を別途確認してください。
+- Open Library: https://openlibrary.org/dev/docs/api/search 、 https://openlibrary.org/dev/docs/api/covers ／公開APIのメタデータ・表紙IDを使用します。表紙の著作権が放棄されているとは扱いません。
+- NDL: https://ndlsearch.ndl.go.jp/help/api ／書誌のISBNを取得する用途で利用します。
+- openBD: https://openbd.jp/ ／提供される書誌・表紙URLだけを使用し、出版社ページのスクレイピングはしません。書誌の存在は表紙利用許諾を意味しません。
+
+追加候補も既存の出典・利用条件・公式性未確認の情報を保持し、`ANIME_REQUIRE_PERMISSION` と `ANIME_BLOCKED_SOURCES` に従います。個人利用・非営利でも自由転載許諾を得たとは表示しません。公式サイト等のキービジュアルやキャラクターイラストを無断収集する仕組みはありません。
+
+Google Booksはこの環境では429です。自身のAPI枠を使う場合はCloudflare Pagesの暗号化シークレット `GOOGLE_BOOKS_API_KEY` を設定して再デプロイできます。値をGitやVITE変数、チャットに入れないでください。未設定でもOpen Library等が動きます。
+
+[表紙の実検索・画像追加・PNG検証と未取得の詳細](docs/book-validation.md)を参照してください。今回実際に取得したのは海外版を含む漫画／書籍表紙と小説表紙であり、添付の日本語小説表紙そのものを取得したとは主張しません。再実行は `npm run test:books`（先にローカルサーバー起動）。`BASE_URL`・`BROWSER_EXECUTABLE_PATH`・`CASE_FILTER`・`REPORT_PATH`を指定できます。
+
+既存のトリミング・ピンチ調整・ランク直接追加・自動保存・PNG出力はそのまま利用できます。画像の種類と年は任意メタデータとして追加保存し、旧ランキングの保存形式は保持します。
+
 ## 非破壊の画像調整と25作品検証
 
 広告収益化は行わない方針です。広告コード・広告スペースはありません。非営利でも著作権と提供元規約を維持します。

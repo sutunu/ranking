@@ -360,7 +360,7 @@ function App() {
       if (!r.ok) throw Error(data.error || "検索できませんでした");
       setMissingWorks(data.missing || []);
       setResults(data.items);
-      if (data.missing?.length)
+      if (!data.items.length && data.missing?.length)
         setNotice(
           data.missing
             .map(
@@ -399,6 +399,12 @@ function App() {
       "image.tmdb.org",
       "media.rawg.io",
       "cdn.myanimelist.net",
+      "covers.openlibrary.org",
+      "books.google.com",
+      "books.google.co.jp",
+      "books.googleusercontent.com",
+      "lh3.googleusercontent.com",
+      "cover.openbd.jp",
     ].includes(u.hostname);
     const r = await fetch(
       known ? `/api/image?url=${encodeURIComponent(url)}` : url,
@@ -417,6 +423,8 @@ function App() {
       credit?: string;
       rights?: Item["rights"];
       workId?: string;
+      artwork?: string;
+      year?: number;
     },
     target = "pool",
   ) {
@@ -434,6 +442,8 @@ function App() {
     }
     const item: Item = {
       id: uid(),
+      artwork: meta.artwork,
+      year: meta.year,
       rights: meta.rights,
       workId: meta.workId,
       src,
@@ -914,8 +924,11 @@ function App() {
                         setSearched(false);
                       }}
                     >
-                      <option value="anime">アニメ</option>
-                      <option value="manga">漫画・関連画像</option>
+                      <option value="anime">
+                        アニメ・漫画・小説のイラスト
+                      </option>
+                      <option value="manga">漫画・書籍の表紙</option>
+                      <option value="books">小説・書籍の表紙</option>
                       <option value="snacks">お菓子・商品</option>
                       <option value="games">ゲーム</option>
                       <option value="movies">映画</option>

@@ -15,6 +15,12 @@ export async function onRequestGet({ request }: { request: Request }) {
         "image.tmdb.org",
         "media.rawg.io",
         "cdn.myanimelist.net",
+        "covers.openlibrary.org",
+        "books.google.com",
+        "books.google.co.jp",
+        "books.googleusercontent.com",
+        "lh3.googleusercontent.com",
+        "cover.openbd.jp",
       ].includes(url.hostname) ||
       url.port ||
       url.username ||
@@ -27,22 +33,42 @@ export async function onRequestGet({ request }: { request: Request }) {
     const deadline = AbortSignal.timeout(12000);
     let current = url;
     let r: Response | undefined;
+    const libraryOrigin = url.hostname === "covers.openlibrary.org";
+    const archiveCover = (u: URL) =>
+      libraryOrigin &&
+      ((u.hostname === "archive.org" &&
+        /^\/download\/[lms]_covers_\d+\/[lms]_covers_\d+_\d+\.zip\/\d+-[LMS]\.jpg$/i.test(
+          u.pathname,
+        )) ||
+        (/^ia\d+\.us\.archive\.org$/.test(u.hostname) &&
+          u.pathname === "/view_archive.php" &&
+          /^\/\d+\/items\/[lms]_covers_\d+\/[lms]_covers_\d+_\d+\.zip$/i.test(
+            u.searchParams.get("archive") || "",
+          ) &&
+          /^\d+-[LMS]\.jpg$/i.test(u.searchParams.get("file") || "")));
     const allowed = (u: URL) =>
       u.protocol === "https:" &&
       !u.port &&
       !u.username &&
       !u.password &&
-      [
-        "upload.wikimedia.org",
-        "thumb.wikimedia.org",
-        "s4.anilist.co",
-        "media.kitsu.app",
-        "media.kitsu.io",
-        "images.openfoodfacts.org",
-        "image.tmdb.org",
-        "media.rawg.io",
-        "cdn.myanimelist.net",
-      ].includes(u.hostname);
+      (archiveCover(u) ||
+        [
+          "upload.wikimedia.org",
+          "thumb.wikimedia.org",
+          "s4.anilist.co",
+          "media.kitsu.app",
+          "media.kitsu.io",
+          "images.openfoodfacts.org",
+          "image.tmdb.org",
+          "media.rawg.io",
+          "cdn.myanimelist.net",
+          "covers.openlibrary.org",
+          "books.google.com",
+          "books.google.co.jp",
+          "books.googleusercontent.com",
+          "lh3.googleusercontent.com",
+          "cover.openbd.jp",
+        ].includes(u.hostname));
     for (let hop = 0; hop < 4; hop++) {
       if (!allowed(current))
         return new Response("許可されていない画像配信先です", { status: 400 });

@@ -1,4 +1,5 @@
 export type ArtworkEnv = {
+  GOOGLE_BOOKS_API_KEY?: string;
   ANIME_BLOCKED_SOURCES?: string;
   ANIME_REQUIRE_PERMISSION?: string;
   TMDB_API_KEY?: string;
@@ -9,7 +10,7 @@ export const unwanted = (i: {
   credit?: string;
   topics?: string;
 }) =>
-  /ai[ _-]?generated|AI生成|非公式イラスト|cosplay|cosplayer|fan[ _-]?art|live[ _-]?action|コスプレ|ファンアート|実写版|実写化|俳優写真/i.test(
+  /fan[ _-]?fiction|unofficial|同人|非公式|ai[ _-]?generated|AI生成|非公式イラスト|cosplay|cosplayer|fan[ _-]?art|live[ _-]?action|コスプレ|ファンアート|実写版|実写化|俳優写真/i.test(
     [i.name, i.credit, i.topics].join(" "),
   );
 export async function catalog(q: string, type: string, env: ArtworkEnv) {

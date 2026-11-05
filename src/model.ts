@@ -1,5 +1,7 @@
 import type { Crop } from "./crop";
 export type Item = {
+  artwork?: string;
+  year?: number;
   crop?: Crop;
   rights?: {
     provider: string;
