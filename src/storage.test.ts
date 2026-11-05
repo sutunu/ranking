@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readSnapshot } from "./storage";
+import { readSnapshot, searchType } from "./storage";
 import { newBoard } from "./model";
 import { normalize, relevance } from "../server/discovery";
 describe("保存データ移行", () => {
@@ -50,3 +50,6 @@ describe("保存データ移行", () => {
     );
   });
 });
+
+it("その他のランキングも表紙を含む作品検索から開始する", () =>
+  expect(searchType("その他")).toBe("anime"));

@@ -46,6 +46,7 @@ export function readSnapshot(value: unknown): {
 export const searchType = (genre: string) =>
   ({
     アニメ: "anime",
+    その他: "anime",
     漫画: "manga",
     お菓子: "snacks",
     ゲーム: "games",
