@@ -45,7 +45,7 @@ async function provider(
               "query($q:String){Page(perPage:24){media(search:$q,type:ANIME,isAdult:false){id idMal title{native romaji english} synonyms seasonYear format coverImage{large} siteUrl}}}",
             variables: { q },
           }),
-          signal: AbortSignal.timeout(7000),
+          signal: AbortSignal.timeout(4000),
         });
         if (!r.ok) throw Error("http_" + r.status);
         const d: any = await r.json();
@@ -70,7 +70,7 @@ async function provider(
         u.searchParams.set("page[limit]", "20");
         const r = await fetch(u, {
           headers: { Accept: "application/vnd.api+json" },
-          signal: AbortSignal.timeout(7000),
+          signal: AbortSignal.timeout(4000),
         });
         if (!r.ok) throw Error("http_" + r.status);
         const d: any = await r.json();
@@ -103,7 +103,7 @@ async function provider(
           u.searchParams.set("q", q);
           u.searchParams.set("limit", "20");
           u.searchParams.set("sfw", "true");
-          const r = await fetch(u, { signal: AbortSignal.timeout(7000) });
+          const r = await fetch(u, { signal: AbortSignal.timeout(4000) });
           if (!r.ok) throw Error("http_" + r.status);
           const d: any = await r.json();
           works = (d.data || []).map((m: any) => ({

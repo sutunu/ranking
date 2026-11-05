@@ -105,7 +105,11 @@ it("専門検索は候補がなくても一般写真で補充しない", async (
   const d = await (await request("no-cover-query", "anime")).json();
   expect(d.items).toEqual([]);
   expect(d.emptyMessage).toBe("適切な画像が見つかりません");
-  expect(mock.legacy).toHaveBeenCalledTimes(1);
+  expect(
+    mock.legacy.mock.calls
+      .map((c) => new URL(c[0].request.url).searchParams.get("type"))
+      .sort(),
+  ).toEqual(["anime", "manga"]);
   expect(
     new URL(mock.legacy.mock.calls[0][0].request.url).searchParams.get("type"),
   ).toBe("anime");
@@ -145,7 +149,11 @@ it("一般ジャンルでも作品と判別できた場合はポスター検索�
   );
   const d = await (await request("auto-artwork-query", "general")).json();
   expect(d.items.map((i: any) => i.key)).toEqual(["cover"]);
-  expect(mock.legacy).toHaveBeenCalledTimes(1);
+  expect(
+    mock.legacy.mock.calls
+      .map((c) => new URL(c[0].request.url).searchParams.get("type"))
+      .sort(),
+  ).toEqual(["anime", "manga"]);
   expect(
     new URL(mock.legacy.mock.calls[0][0].request.url).searchParams.get("type"),
   ).toBe("anime");

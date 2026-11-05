@@ -52,7 +52,7 @@ export async function onRequestGet({
     .filter((v, i, a) => a.indexOf(v) === i)
     .slice(0, 3);
   if (["anime", "manga", "books"].includes(type)) {
-    const [animation, books] = await Promise.all([
+    const [animation, books, mangaCovers] = await Promise.all([
       type === "anime"
         ? animeSearch(
             q,
@@ -91,10 +91,39 @@ export async function onRequestGet({
         env.ANIME_REQUIRE_PERMISSION === "true",
         env.GOOGLE_BOOKS_API_KEY,
       ),
+      type === "anime"
+        ? (async () => {
+            try {
+              const r = await legacy({
+                request: new Request(
+                  "https://local/api/search?type=manga&q=" +
+                    encodeURIComponent(
+                      variants.find((t) => /^[\x20-\x7e]+$/.test(t)) || q,
+                    ),
+                ),
+              });
+              const d: any = await r.json();
+              return (d.items || [])
+                .filter(
+                  (i: any) =>
+                    Math.max(...variants.map((t) => relevance(i.name, t))) >=
+                    60,
+                )
+                .map((i: any) => ({
+                  ...i,
+                  artwork: /^小説|ノベル/.test(i.name)
+                    ? "小説データベースの表紙"
+                    : "漫画データベースの表紙",
+                }));
+            } catch {
+              return [];
+            }
+          })()
+        : Promise.resolve([]),
     ]);
     const result = {
       ...animation,
-      items: [...animation.items, ...books.items],
+      items: [...animation.items, ...mangaCovers, ...books.items],
       missing: [...(animation.missing || []), ...books.missing],
       diagnostics: [...animation.diagnostics, ...books.diagnostics],
       provider:
@@ -120,6 +149,9 @@ export async function onRequestGet({
       result.items = [];
       result.status = "rights_unconfirmed";
     }
+    result.items = [
+      ...new Map(result.items.map((i: any) => [i.url || i.key, i])).values(),
+    ];
     if (result.items.length) result.status = "ok";
     result.missing = result.missing
       .filter((m: any) => !result.items.some((i: any) => i.name === m.name))

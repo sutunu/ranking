@@ -7,21 +7,29 @@ export async function animeAliases(q: string) {
   const ja = /[\u3040-\u30ff\u3400-\u9fff]/.test(q),
     host = ja ? "ja.wikipedia.org" : "en.wikipedia.org";
   const results = await Promise.allSettled([
-    api(host, {
-      titles: q,
-      redirects: "1",
-      prop: "langlinks",
-      lllang: ja ? "en" : "ja",
-      lllimit: "1",
-    }),
-    api(host, {
-      generator: "search",
-      gsrsearch: q,
-      gsrlimit: "5",
-      prop: "langlinks",
-      lllang: ja ? "en" : "ja",
-      lllimit: "1",
-    }),
+    api(
+      host,
+      {
+        titles: q,
+        redirects: "1",
+        prop: "langlinks",
+        lllang: ja ? "en" : "ja",
+        lllimit: "1",
+      },
+      3500,
+    ),
+    api(
+      host,
+      {
+        generator: "search",
+        gsrsearch: q,
+        gsrlimit: "5",
+        prop: "langlinks",
+        lllang: ja ? "en" : "ja",
+        lllimit: "1",
+      },
+      3500,
+    ),
   ]);
   const terms: any[] = [];
   for (const result of results) {

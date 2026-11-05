@@ -59,7 +59,7 @@ async function get(url: URL | string, json = true) {
     headers: {
       "User-Agent": "TierStudio/3.0 (https://github.com/sutunu/ranking)",
     },
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(3500),
   });
   if (!r.ok) {
     if ([429, 503].includes(r.status)) {
@@ -167,7 +167,7 @@ export async function booksSearch(
         try {
           const u = new URL("https://openlibrary.org/search.json");
           u.searchParams.set("title", en);
-          u.searchParams.set("limit", "16");
+          u.searchParams.set("limit", "40");
           u.searchParams.set(
             "fields",
             "key,title,cover_i,first_publish_year,isbn,subject,author_name",
@@ -191,6 +191,36 @@ export async function booksSearch(
               );
             else missing.push({ name: b.title, status: "no_image" });
           }
+          const matched = (d.docs || [])
+            .filter(
+              (b: any) =>
+                !unwanted({ name: b.title }) && relatedBook(b.title, [q, en]),
+            )
+            .slice(0, 3);
+          await Promise.allSettled(
+            matched.map(async (b: any) => {
+              const editions = await get(
+                `https://openlibrary.org${b.key}/editions.json?limit=40`,
+              );
+              for (const e of editions.entries || []) {
+                if (unwanted({ name: e.title })) continue;
+                for (const cover of (e.covers || [])
+                  .filter((id: number) => id > 0)
+                  .slice(0, 2)) {
+                  items.push(
+                    candidate(
+                      "Open Library",
+                      String(cover),
+                      e.title || b.title,
+                      `https://covers.openlibrary.org/b/id/${cover}-L.jpg?default=false`,
+                      `https://openlibrary.org${e.key}`,
+                      bookKind(e.title || b.title, b.subject || []),
+                    ),
+                  );
+                }
+              }
+            }),
+          );
           diagnostics.push({ provider: "Open Library", status: "ok" });
         } catch (e) {
           diagnostics.push({

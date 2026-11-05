@@ -37,3 +37,9 @@ Open Library画像の一部は `covers.openlibrary.org → archive.org → ia数
 - ソードアート・オンライン: Sword art online — https://openlibrary.org/works/OL19711486W
 - ソードアート・オンライン: Sword Art Online: Aincrad - manga (Sword Art Online Manga) — https://openlibrary.org/works/OL19086990W
 - 小説追加検証: Sword art online（小説表紙）、画像取得=True、PNG=True
+
+## 巻・版展開と速度改善の追加検証
+
+Open Libraryのwork代表表紙だけでなく、該当する先頭3作品のeditionsを最大40版ずつ展開するよう修正。暗殺教室の書籍候補は実測31件（従来15件）。アニメ検索にも原作漫画DBを並列で合流し、フリーレンでは原作表紙と小説『前奏』の候補が増えました。両画像のプロキシ取得を確認しています。著者つながりの別作品はタイトル関連度で除外します。
+
+検索単発実測はフリーレン約5.2秒、暗殺教室約1.4秒。公開サイトでの計測ではなく、ネットワークやキャッシュ状態に依存します。別名解決・書誌APIの待ち時間を3.5秒、作品APIを4秒に制限し、遅いサービスを長時間待つ状態を緩和しました。公開URL未提示のため、利用者が閲覧しているサイトのデプロイ反映状況は未確認です。

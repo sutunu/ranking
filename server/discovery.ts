@@ -22,14 +22,18 @@ export function relevance(name: string, q: string) {
     y = grams(b);
   return (50 * [...y].filter((c) => x.has(c)).length) / Math.max(1, y.size);
 }
-export async function api(host: string, params: Record<string, string>) {
+export async function api(
+  host: string,
+  params: Record<string, string>,
+  timeout = 10000,
+) {
   const u = new URL(`https://${host}/w/api.php`);
   Object.entries({ action: "query", format: "json", ...params }).forEach(
     ([k, v]) => u.searchParams.set(k, v),
   );
   const r = await fetch(u, {
     headers: { "User-Agent": agent },
-    signal: AbortSignal.timeout(10000),
+    signal: AbortSignal.timeout(timeout),
   });
   if (!r.ok) throw Error(`${host}: ${r.status}`);
   const d = (await r.json()) as any;

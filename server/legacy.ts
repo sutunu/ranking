@@ -23,7 +23,7 @@ export async function onRequestGet({ request }: Context) {
             query: `query ($q: String) { Page(perPage: 24) { media(search: $q, type: ${manga ? "MANGA" : "ANIME"}, isAdult: false) { id title { romaji native } coverImage { large } siteUrl } } }`,
             variables: { q },
           }),
-          signal: AbortSignal.timeout(15000),
+          signal: AbortSignal.timeout(4000),
         });
         if (!response.ok) throw Error("AniList が応答しませんでした");
         const data: any = await response.json();
@@ -50,7 +50,7 @@ export async function onRequestGet({ request }: Context) {
         api.searchParams.set("page[limit]", "20");
         const fallback = await fetch(api, {
           headers: { Accept: "application/vnd.api+json" },
-          signal: AbortSignal.timeout(15000),
+          signal: AbortSignal.timeout(4000),
         });
         if (!fallback.ok)
           throw Error(
@@ -90,7 +90,7 @@ export async function onRequestGet({ request }: Context) {
       headers: {
         "User-Agent": "TierStudio/2.0 (https://github.com/sutunu/ranking)",
       },
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(4000),
     });
     if (!response.ok) throw Error("Wikimedia が応答しませんでした");
     const data: any = await response.json();
